@@ -1,7 +1,7 @@
 """
-Multi-Provider LLM Integration for Web Search Synthesis.
-Supports: Groq, OpenAI, Google Gemini, Anthropic, Ollama, and OpenRouter.
-Feeds live SerpApi web search context to the LLM for Perplexity-style cited answers.
+Multi-Provider LLM Integration for Streamlit AI Chatbot with Groq Support.
+Supports: Groq (ultra-fast inference), OpenAI, Google Gemini, Anthropic, OpenRouter, and Ollama.
+Supports both direct conversational chat & live web search context synthesis.
 """
 
 import os
@@ -10,7 +10,14 @@ import requests
 from typing import Dict, Any, List, Generator, Optional
 
 
-SYSTEM_PROMPT = """You are a smart, accurate AI Search Assistant powered by real-time web search.
+DEFAULT_SYSTEM_PROMPT = """You are a highly intelligent, helpful, and friendly AI Assistant powered by Groq's high-speed inference engine.
+Your responses should be:
+- Accurate, well-reasoned, and clear
+- Nicely structured using Markdown (headers, bullet points, code blocks)
+- Engaging, professional, and directly addressing the user's inquiry.
+"""
+
+SEARCH_SYNTHESIS_SYSTEM_PROMPT = """You are a smart, accurate AI Search Assistant powered by real-time web search.
 You have access to live Google search results for the user's inquiry.
 Your goals:
 1. Synthesize a comprehensive, clear, well-structured, and factual answer based on the provided search results.
@@ -21,7 +28,43 @@ Your goals:
 """
 
 
-def format_search_context(search_data: Dict[str, Any]) -> str:
+def fetch_groq_models(api_key: str) -> List[str]:
+    """
+    Fetches the available chat-capable models from Groq API.
+    Falls back to a standard curated list if unreachable.
+    """
+    fallback_models = [
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b",
+        "groq/compound",
+        "groq/compound-mini",
+        "qwen/qwen3.6-27b",
+        "allam-2-7b",
+        "canopylabs/orpheus-v1-english"
+    ]
+    if not api_key:
+        return fallback_models
+    
+    try:
+        url = "https://api.groq.com/openai/v1/models"
+        headers = {"Authorization": f"Bearer {api_key.strip()}"}
+        resp = requests.get(url, headers=headers, timeout=6)
+        if resp.status_code == 200:
+            data = resp.json()
+            models = [
+                m["id"] for m in data.get("data", [])
+                if not any(ex in m["id"] for ex in ["whisper", "guard", "embedding", "moderation"])
+            ]
+            # Prioritize standard high-performing models
+            top_priority = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "groq/compound", "qwen/qwen3.6-27b"]
+            sorted_models = [m for m in top_priority if m in models] + [m for m in models if m not in top_priority]
+            return sorted_models if sorted_models else fallback_models
+    except Exception:
+        pass
+    return fallback_models
+
+
+def format_search_context(search_data: Optional[Dict[str, Any]]) -> str:
     """Formats search results into a clean prompt context for the LLM."""
     if not search_data or "error" in search_data:
         return "No external search context available."
@@ -57,82 +100,119 @@ def format_search_context(search_data: Dict[str, Any]) -> str:
     return "\n".join(context_lines)
 
 
-def generate_llm_response(
-    provider: str,
-    api_key: str,
-    model: str,
+def build_messages(
     query: str,
-    search_data: Dict[str, Any],
-    chat_history: List[Dict[str, str]] = None,
-    base_url: Optional[str] = None
-) -> str:
-    """
-    Calls the specified LLM provider with search context.
-    """
-    search_context = format_search_context(search_data)
-    
-    prompt = f"""User Question: {query}
+    search_data: Optional[Dict[str, Any]] = None,
+    chat_history: Optional[List[Dict[str, str]]] = None,
+    system_prompt: Optional[str] = None
+) -> List[Dict[str, str]]:
+    """Constructs the message payload for chat completions."""
+    if search_data and not search_data.get("error"):
+        sys = system_prompt or SEARCH_SYNTHESIS_SYSTEM_PROMPT
+        search_context = format_search_context(search_data)
+        user_prompt = f"""User Question: {query}
 
 --- LIVE WEB SEARCH CONTEXT ---
 {search_context}
 --- END SEARCH CONTEXT ---
 
 Please provide an accurate, up-to-date answer referencing the citations [1], [2], etc."""
-
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-    
-    # Add recent chat history (last 4 messages)
-    if chat_history:
-        for msg in chat_history[-4:]:
-            messages.append({"role": msg["role"], "content": msg["content"]})
-            
-    messages.append({"role": "user", "content": prompt})
-    
-    # Provider routing
-    if provider == "Groq":
-        return _call_openai_compatible(
-            url="https://api.groq.com/openai/v1/chat/completions",
-            api_key=api_key,
-            model=model or "llama-3.3-70b-versatile",
-            messages=messages
-        )
-    elif provider == "OpenAI":
-        return _call_openai_compatible(
-            url="https://api.openai.com/v1/chat/completions",
-            api_key=api_key,
-            model=model or "gpt-4o-mini",
-            messages=messages
-        )
-    elif provider == "OpenRouter":
-        return _call_openai_compatible(
-            url="https://openrouter.ai/api/v1/chat/completions",
-            api_key=api_key,
-            model=model or "meta-llama/llama-3.3-70b-instruct",
-            messages=messages
-        )
-    elif provider == "Ollama (Local)":
-        endpoint = base_url or "http://localhost:11434/v1/chat/completions"
-        return _call_openai_compatible(
-            url=endpoint,
-            api_key="ollama",
-            model=model or "llama3.2",
-            messages=messages
-        )
-    elif provider == "Gemini":
-        return _call_gemini_api(api_key, model or "gemini-1.5-flash", prompt, messages)
-    elif provider == "Custom OpenAI-Compatible":
-        endpoint = base_url or "http://localhost:8000/v1/chat/completions"
-        return _call_openai_compatible(
-            url=endpoint,
-            api_key=api_key or "sk-dummy",
-            model=model or "default",
-            messages=messages
-        )
     else:
-        raise ValueError(f"Unknown LLM provider: {provider}")
+        sys = system_prompt or DEFAULT_SYSTEM_PROMPT
+        user_prompt = query
+
+    messages = [{"role": "system", "content": sys}]
+    
+    # Add recent history (up to last 8 messages)
+    if chat_history:
+        for msg in chat_history[-8:]:
+            if msg.get("role") in ["user", "assistant"] and msg.get("content"):
+                messages.append({"role": msg["role"], "content": msg["content"]})
+                
+    messages.append({"role": "user", "content": user_prompt})
+    return messages
 
 
-def _call_openai_compatible(url: str, api_key: str, model: str, messages: List[Dict[str, str]]) -> str:
+def stream_llm_response(
+    provider: str,
+    api_key: str,
+    model: str,
+    query: str,
+    search_data: Optional[Dict[str, Any]] = None,
+    chat_history: Optional[List[Dict[str, str]]] = None,
+    system_prompt: Optional[str] = None,
+    temperature: float = 0.7,
+    max_tokens: int = 2048,
+    base_url: Optional[str] = None
+) -> Generator[str, None, None]:
+    """
+    Streams response tokens from the selected LLM provider.
+    """
+    messages = build_messages(query, search_data, chat_history, system_prompt)
+    
+    if provider == "Groq":
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        yield from _stream_openai_compatible(url, api_key, model or "openai/gpt-oss-120b", messages, temperature, max_tokens)
+    elif provider == "OpenAI":
+        url = "https://api.openai.com/v1/chat/completions"
+        yield from _stream_openai_compatible(url, api_key, model or "gpt-4o-mini", messages, temperature, max_tokens)
+    elif provider == "OpenRouter":
+        url = "https://openrouter.ai/api/v1/chat/completions"
+        yield from _stream_openai_compatible(url, api_key, model or "meta-llama/llama-3.3-70b-instruct", messages, temperature, max_tokens)
+    elif provider == "Ollama (Local)":
+        url = base_url or "http://localhost:11434/v1/chat/completions"
+        yield from _stream_openai_compatible(url, "ollama", model or "llama3.2", messages, temperature, max_tokens)
+    elif provider == "Custom OpenAI-Compatible":
+        url = base_url or "http://localhost:8000/v1/chat/completions"
+        yield from _stream_openai_compatible(url, api_key or "sk-dummy", model or "default", messages, temperature, max_tokens)
+    elif provider == "Gemini":
+        full_res = _call_gemini_api(api_key, model or "gemini-1.5-flash", query, messages)
+        yield full_res
+    else:
+        yield f"⚠️ Unsupported provider: {provider}"
+
+
+def generate_llm_response(
+    provider: str,
+    api_key: str,
+    model: str,
+    query: str,
+    search_data: Optional[Dict[str, Any]] = None,
+    chat_history: Optional[List[Dict[str, str]]] = None,
+    system_prompt: Optional[str] = None,
+    temperature: float = 0.7,
+    max_tokens: int = 2048,
+    base_url: Optional[str] = None
+) -> str:
+    """
+    Non-streaming response generator from the selected LLM provider.
+    """
+    chunks = []
+    for chunk in stream_llm_response(
+        provider=provider,
+        api_key=api_key,
+        model=model,
+        query=query,
+        search_data=search_data,
+        chat_history=chat_history,
+        system_prompt=system_prompt,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        base_url=base_url
+    ):
+        chunks.append(chunk)
+    return "".join(chunks)
+
+
+def _stream_openai_compatible(
+    url: str,
+    api_key: str,
+    model: str,
+    messages: List[Dict[str, str]],
+    temperature: float = 0.7,
+    max_tokens: int = 2048
+) -> Generator[str, None, None]:
+    """Handles SSE stream from OpenAI/Groq compatible chat APIs."""
     headers = {
         "Authorization": f"Bearer {api_key.strip()}",
         "Content-Type": "application/json"
@@ -140,28 +220,56 @@ def _call_openai_compatible(url: str, api_key: str, model: str, messages: List[D
     payload = {
         "model": model,
         "messages": messages,
-        "temperature": 0.5,
-        "max_tokens": 1500
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "stream": True
     }
     
     try:
-        resp = requests.post(url, headers=headers, json=payload, timeout=30)
+        resp = requests.post(url, headers=headers, json=payload, stream=True, timeout=30)
         if resp.status_code != 200:
-            err = resp.json().get("error", {}).get("message", resp.text) if resp.text else f"Status {resp.status_code}"
-            return f"⚠️ LLM Error ({resp.status_code}): {err}"
-        
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
+            try:
+                err_json = resp.json()
+                err_msg = err_json.get("error", {}).get("message", resp.text)
+            except Exception:
+                err_msg = resp.text or f"HTTP {resp.status_code}"
+            yield f"⚠️ **API Error ({resp.status_code})**: {err_msg}"
+            return
+
+        for line in resp.iter_lines():
+            if not line:
+                continue
+            decoded = line.decode("utf-8")
+            if decoded.startswith("data: "):
+                data_str = decoded[6:].strip()
+                if data_str == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(data_str)
+                    choices = chunk.get("choices", [])
+                    if choices:
+                        delta = choices[0].get("delta", {})
+                        content = delta.get("content", "")
+                        if content:
+                            yield content
+                except Exception:
+                    continue
+    except requests.exceptions.Timeout:
+        yield "⚠️ Request timed out. Please try again."
     except Exception as e:
-        return f"⚠️ LLM Request Failed: {str(e)}"
+        yield f"⚠️ Request failed: {str(e)}"
 
 
 def _call_gemini_api(api_key: str, model: str, prompt: str, messages: List[Dict[str, str]]) -> str:
+    """Calls Gemini REST API."""
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key.strip()}"
     headers = {"Content-Type": "application/json"}
     
-    # Format contents
-    contents = [{"parts": [{"text": SYSTEM_PROMPT + "\n\n" + prompt}]}]
+    contents = []
+    for m in messages:
+        role = "user" if m["role"] in ["user", "system"] else "model"
+        contents.append({"role": role, "parts": [{"text": m["content"]}]})
+        
     payload = {"contents": contents}
     
     try:

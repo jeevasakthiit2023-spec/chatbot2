@@ -5,15 +5,21 @@ import streamlit as st
 from datetime import datetime
 from dotenv import load_dotenv
 from search_engine import perform_serp_search, synthesize_direct_answer, check_serpapi_key
-from llm_provider import generate_llm_response
+from llm_provider import (
+    fetch_groq_models,
+    stream_llm_response,
+    generate_llm_response,
+    DEFAULT_SYSTEM_PROMPT,
+    SEARCH_SYNTHESIS_SYSTEM_PROMPT
+)
 
 # Load environment variables
 load_dotenv()
 
 # --- Streamlit Page Configuration ---
 st.set_page_config(
-    page_title="NexusSearch AI - Live Web Chatbot",
-    page_icon="🌐",
+    page_title="NexusAI - Groq Powered Intelligent Chatbot",
+    page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -21,36 +27,37 @@ st.set_page_config(
 # --- Custom Styling & Aesthetics (Dark Glassmorphic & Modern Theme) ---
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
     
     html, body, [class*="css"] {
         font-family: 'Inter', sans-serif;
     }
     
-    /* Main Background & Container styling */
-    .main {
-        background: linear-gradient(135deg, #0b0f19 0%, #111827 50%, #0d1322 100%);
+    /* Main Background */
+    .stApp {
+        background: radial-gradient(circle at 10% 20%, #0b0f19 0%, #111827 60%, #0d1322 100%);
     }
     
     /* Header Gradient Banner */
     .header-box {
-        background: linear-gradient(90deg, rgba(59, 130, 246, 0.15), rgba(147, 51, 234, 0.15));
+        background: linear-gradient(135deg, rgba(249, 115, 22, 0.12) 0%, rgba(59, 130, 246, 0.12) 50%, rgba(147, 51, 234, 0.12) 100%);
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 16px;
-        padding: 24px 28px;
-        margin-bottom: 24px;
+        padding: 22px 28px;
+        margin-bottom: 20px;
         backdrop-filter: blur(12px);
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.35);
     }
     
     .header-title {
         font-size: 2.1rem;
-        font-weight: 700;
-        background: linear-gradient(135deg, #60a5fa 0%, #c084fc 100%);
+        font-weight: 800;
+        background: linear-gradient(135deg, #f97316 0%, #60a5fa 50%, #c084fc 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         margin: 0;
-        padding-bottom: 6px;
+        padding-bottom: 4px;
+        letter-spacing: -0.5px;
     }
     
     .header-subtitle {
@@ -59,9 +66,23 @@ st.markdown("""
         margin: 0;
     }
     
+    .badge-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: rgba(249, 115, 22, 0.15);
+        color: #fb923c;
+        border: 1px solid rgba(249, 115, 22, 0.3);
+        padding: 3px 10px;
+        border-radius: 9999px;
+        font-size: 0.76rem;
+        font-weight: 600;
+        margin-top: 6px;
+    }
+
     /* Glassmorphism Source Cards */
     .source-card {
-        background: rgba(30, 41, 59, 0.6);
+        background: rgba(30, 41, 59, 0.55);
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 12px;
         padding: 12px 16px;
@@ -70,7 +91,7 @@ st.markdown("""
     }
     
     .source-card:hover {
-        background: rgba(51, 65, 85, 0.8);
+        background: rgba(51, 65, 85, 0.75);
         border-color: rgba(96, 165, 250, 0.4);
         transform: translateY(-2px);
     }
@@ -80,7 +101,7 @@ st.markdown("""
         background: #2563eb;
         color: #ffffff;
         font-size: 0.72rem;
-        font-weight: 600;
+        font-weight: 700;
         padding: 2px 8px;
         border-radius: 9999px;
         margin-right: 6px;
@@ -148,139 +169,164 @@ st.markdown("""
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-if "last_search_data" not in st.session_state:
-    st.session_state.last_search_data = None
-
 if "pending_prompt" not in st.session_state:
     st.session_state.pending_prompt = None
 
+# Persona Presets
+PERSONAS = {
+    "🤖 General Assistant": "You are a helpful, intelligent, and friendly AI assistant powered by Groq.",
+    "💻 Expert Coder & Architect": "You are an expert full-stack software engineer and system architect. Provide clean, well-commented, robust code with explanations.",
+    "⚡ Ultra-Concise & Direct": "You provide extremely fast, direct, bullet-pointed, and highly concise answers without filler words.",
+    "📊 Data & Science Analyst": "You are a senior data scientist and technical researcher. Emphasize analytical rigor, statistics, and clear structured synthesis.",
+    "✍️ Creative Writer & Strategist": "You are a creative writer and marketing strategist with an engaging, articulate, and compelling voice."
+}
+
 # --- Sidebar: Configuration & Settings ---
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/8649/8649622.png", width=48)
+    st.image("https://cdn-icons-png.flaticon.com/512/8649/8649622.png", width=44)
     st.title("Settings & Engine")
     
-    # 1. SerpApi Key Configuration
-    st.markdown("### 🔑 SerpApi Key")
-    default_serp_key = os.getenv("SERPAPI_API_KEY", "")
-    serpapi_key = st.text_input(
-        "SerpApi API Key",
-        value=default_serp_key,
-        type="password",
-        help="Your SerpApi key for real-time Google search grounding."
+    # 1. Engine / Provider Mode
+    st.markdown("### ⚡ AI Provider")
+    llm_provider = st.selectbox(
+        "Inference Engine",
+        ["Groq", "OpenAI", "Gemini", "OpenRouter", "Ollama (Local)", "Custom OpenAI-Compatible"],
+        index=0
     )
     
-    # Check Key status
-    if serpapi_key:
-        key_info = check_serpapi_key(serpapi_key)
-        if key_info.get("valid"):
-            st.markdown(f"""
+    groq_api_key = ""
+    llm_api_key = ""
+    llm_model = ""
+    custom_endpoint = ""
+    
+    if llm_provider == "Groq":
+        default_groq = os.getenv("GROQ_API_KEY", "")
+        groq_api_key = st.text_input(
+            "Groq API Key",
+            value=default_groq,
+            type="password",
+            help="Your Groq API key for ultra-fast LPU inference."
+        )
+        llm_api_key = groq_api_key
+        
+        if groq_api_key:
+            groq_models = fetch_groq_models(groq_api_key)
+            llm_model = st.selectbox("Groq Model", groq_models, index=0)
+            st.markdown("""
             <div class="status-badge-ok">
-                ● Connected ({key_info.get('plan')})
-            </div>
-            <div style="font-size:0.75rem; color:#94a3b8; margin-top:4px;">
-                Account: {key_info.get('email')}
+                ⚡ Groq LPU Connected
             </div>
             """, unsafe_allow_html=True)
         else:
-            st.markdown(f"""
+            st.markdown("""
             <div class="status-badge-err">
-                ● {key_info.get('error', 'Invalid Key')}
+                ● Missing Groq Key
             </div>
             """, unsafe_allow_html=True)
-    else:
-        st.warning("Please enter your SerpApi key.")
+            
+    elif llm_provider == "OpenAI":
+        default_openai = os.getenv("OPENAI_API_KEY", "")
+        llm_api_key = st.text_input("OpenAI API Key", value=default_openai, type="password")
+        llm_model = st.selectbox("Model", ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"])
+    elif llm_provider == "Gemini":
+        default_gemini = os.getenv("GEMINI_API_KEY", "")
+        llm_api_key = st.text_input("Gemini API Key", value=default_gemini, type="password")
+        llm_model = st.selectbox("Model", ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-exp"])
+    elif llm_provider == "OpenRouter":
+        llm_api_key = st.text_input("OpenRouter API Key", type="password")
+        llm_model = st.text_input("Model ID", value="meta-llama/llama-3.3-70b-instruct")
+    elif llm_provider == "Ollama (Local)":
+        custom_endpoint = st.text_input("Ollama Base URL", value="http://localhost:11434/v1/chat/completions")
+        llm_model = st.text_input("Model Name", value="llama3.2")
+    elif llm_provider == "Custom OpenAI-Compatible":
+        custom_endpoint = st.text_input("API Base URL", value="http://localhost:8000/v1/chat/completions")
+        llm_api_key = st.text_input("API Key (optional)", type="password")
+        llm_model = st.text_input("Model Name", value="default")
 
     st.markdown("---")
-    
-    # 2. Search Configuration
-    st.markdown("### 🔍 Search Parameters")
-    search_engine_type = st.selectbox(
-        "Search Engine",
-        ["google", "google_news", "google_scholar"],
-        format_func=lambda x: {
-            "google": "🌐 Google Web Search",
-            "google_news": "📰 Google News",
-            "google_scholar": "🎓 Google Scholar"
-        }.get(x, x)
+
+    # 2. Chat Mode: Direct Chat vs Web-Grounded Search
+    st.markdown("### 🌐 Search Grounding Mode")
+    chat_mode = st.radio(
+        "Chat Mode",
+        ["💬 Direct Groq AI Chat", "🌐 Web-Grounded AI Search"],
+        index=0,
+        help="Direct mode gives instant conversational responses. Web-Grounded mode queries Google via SerpApi and synthesizes live sources."
     )
     
-    col_geo1, col_geo2 = st.columns(2)
-    with col_geo1:
-        country_code = st.selectbox(
-            "Region (gl)",
-            ["us", "uk", "in", "ca", "au", "de", "fr", "jp", "br"],
-            index=0,
-            help="Country search results bias"
+    serpapi_key = os.getenv("SERPAPI_API_KEY", "")
+    search_engine_type = "google"
+    country_code = "us"
+    lang_code = "en"
+    num_results = 6
+    safe_search = "active"
+    
+    if chat_mode == "🌐 Web-Grounded AI Search":
+        serpapi_key = st.text_input(
+            "SerpApi Key (Google Grounding)",
+            value=serpapi_key,
+            type="password",
+            help="SerpApi key for fetching real-time Google search results."
         )
-    with col_geo2:
-        lang_code = st.selectbox(
-            "Language (hl)",
-            ["en", "es", "fr", "de", "hi", "ja", "zh-cn"],
-            index=0,
-            help="Search results interface language"
+        if serpapi_key:
+            key_info = check_serpapi_key(serpapi_key)
+            if key_info.get("valid"):
+                st.markdown(f"""
+                <div class="status-badge-ok">
+                    ● SerpApi Active ({key_info.get('plan')})
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div class="status-badge-err">
+                    ● {key_info.get('error', 'Invalid Key')}
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.warning("Please provide a SerpApi key for live web search.")
+            
+        search_engine_type = st.selectbox(
+            "Search Type",
+            ["google", "google_news", "google_scholar"],
+            format_func=lambda x: {
+                "google": "🌐 Google Web",
+                "google_news": "📰 Google News",
+                "google_scholar": "🎓 Google Scholar"
+            }.get(x, x)
         )
-        
-    num_results = st.slider("Result Depth", min_value=3, max_value=15, value=8)
-    safe_search = st.selectbox("SafeSearch", ["active", "off"], index=0)
+        col_geo1, col_geo2 = st.columns(2)
+        with col_geo1:
+            country_code = st.selectbox("Region", ["us", "uk", "in", "ca", "au", "de", "fr", "jp"], index=0)
+        with col_geo2:
+            lang_code = st.selectbox("Language", ["en", "es", "fr", "de", "hi", "ja"], index=0)
+        num_results = st.slider("Source Depth", min_value=3, max_value=12, value=6)
 
     st.markdown("---")
 
-    # 3. AI Synthesis Mode & Optional LLM Provider
-    st.markdown("### 🧠 AI Synthesis Mode")
-    synthesis_mode = st.radio(
-        "Synthesis Engine",
-        ["Direct SerpApi Engine", "Hybrid LLM + Search"],
-        help="Direct mode uses SerpApi's Knowledge Graph & AI Overview. Hybrid mode synthesizes using an LLM."
-    )
+    # 3. Model Parameters & Persona
+    st.markdown("### 🎛️ AI Persona & Parameters")
+    selected_persona_name = st.selectbox("AI Persona", list(PERSONAS.keys()), index=0)
+    system_prompt = PERSONAS[selected_persona_name]
     
-    llm_provider = "Groq"
-    llm_model = ""
-    llm_api_key = ""
-    custom_endpoint = ""
-    
-    if synthesis_mode == "Hybrid LLM + Search":
-        llm_provider = st.selectbox(
-            "LLM Provider",
-            ["Groq", "OpenAI", "Gemini", "OpenRouter", "Ollama (Local)", "Custom OpenAI-Compatible"]
-        )
-        
-        if llm_provider == "Groq":
-            default_groq = os.getenv("GROQ_API_KEY", "")
-            llm_api_key = st.text_input("Groq API Key", value=default_groq, type="password", help="Get free fast keys at console.groq.com")
-            llm_model = st.selectbox("Model", ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"])
-        elif llm_provider == "OpenAI":
-            default_openai = os.getenv("OPENAI_API_KEY", "")
-            llm_api_key = st.text_input("OpenAI API Key", value=default_openai, type="password")
-            llm_model = st.selectbox("Model", ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"])
-        elif llm_provider == "Gemini":
-            default_gemini = os.getenv("GEMINI_API_KEY", "")
-            llm_api_key = st.text_input("Gemini API Key", value=default_gemini, type="password")
-            llm_model = st.selectbox("Model", ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-exp"])
-        elif llm_provider == "OpenRouter":
-            llm_api_key = st.text_input("OpenRouter API Key", type="password")
-            llm_model = st.text_input("Model ID", value="meta-llama/llama-3.3-70b-instruct")
-        elif llm_provider == "Ollama (Local)":
-            custom_endpoint = st.text_input("Ollama Base URL", value="http://localhost:11434/v1/chat/completions")
-            llm_model = st.text_input("Model Name", value="llama3.2")
-        elif llm_provider == "Custom OpenAI-Compatible":
-            custom_endpoint = st.text_input("API Base URL", value="http://localhost:8000/v1/chat/completions")
-            llm_api_key = st.text_input("API Key (optional)", type="password")
-            llm_model = st.text_input("Model Name", value="default")
+    with st.expander("⚙️ Advanced Parameters", expanded=False):
+        temperature = st.slider("Temperature", min_value=0.0, max_value=1.5, value=0.7, step=0.05)
+        max_tokens = st.slider("Max Tokens", min_value=256, max_value=4096, value=2048, step=128)
+        custom_system_prompt = st.text_area("Custom System Prompt", value=system_prompt, height=80)
+        if custom_system_prompt.strip():
+            system_prompt = custom_system_prompt
 
     st.markdown("---")
-    
-    # 4. Chat Controls
+
+    # 4. Session Controls
     st.markdown("### 🛠️ Actions & Export")
     col_c1, col_c2 = st.columns(2)
     with col_c1:
         if st.button("🗑️ Clear Chat", use_container_width=True):
             st.session_state.messages = []
-            st.session_state.last_search_data = None
             st.rerun()
             
     with col_c2:
-        # Export chat as Markdown
-        chat_md = "# NexusSearch Chatbot Export\n\n"
+        chat_md = f"# NexusAI Chat Export - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
         for m in st.session_state.messages:
             chat_md += f"### {m['role'].capitalize()}\n{m['content']}\n\n"
         st.download_button(
@@ -292,24 +338,36 @@ with st.sidebar:
         )
 
 # --- Header Banner ---
-st.markdown("""
+st.markdown(f"""
 <div class="header-box">
-    <h1 class="header-title">⚡ NexusSearch AI</h1>
-    <p class="header-subtitle">Real-time Web Grounding & Intelligent Search Agent powered by SerpApi & Live Google Search</p>
+    <h1 class="header-title">⚡ NexusAI Streamlit Chatbot</h1>
+    <p class="header-subtitle">Ultra-fast conversational AI powered by <strong>Groq LPU</strong> & optional real-time <strong>Google Web Grounding</strong>.</p>
+    <div style="margin-top: 8px;">
+        <span class="badge-pill">⚡ Engine: {llm_provider} ({llm_model or 'Default'})</span>
+        <span class="badge-pill" style="margin-left: 8px;">{'🌐 Live Web Grounding' if chat_mode == '🌐 Web-Grounded AI Search' else '💬 Instant AI Chat'}</span>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
-# --- Quick Starter Prompt Chips (if chat is empty) ---
+# --- Quick Starter Prompt Chips (when chat is empty) ---
 if not st.session_state.messages:
-    st.markdown("##### 🚀 Suggested Questions")
+    st.markdown("##### 💡 Suggested Questions to Get Started")
     col1, col2, col3, col4 = st.columns(4)
     
-    starter_prompts = [
-        "🔬 Latest breakthroughs in Quantum Computing",
-        "📱 Top tech news and launches today",
-        "📈 Current trends in Artificial Intelligence 2026",
-        "🚀 NASA latest space mission updates"
-    ]
+    if chat_mode == "🌐 Web-Grounded AI Search":
+        starter_prompts = [
+            "🔬 Latest breakthroughs in Quantum Computing",
+            "📱 Top tech news and launches today",
+            "📈 Current trends in Artificial Intelligence 2026",
+            "🚀 NASA latest space mission updates"
+        ]
+    else:
+        starter_prompts = [
+            "🐍 Write a Python async web scraper with error handling",
+            "💡 Explain Quantum Computing in simple terms with analogies",
+            "⚡ What makes Groq LPU architecture so fast for LLMs?",
+            "📊 Design a clean REST API architecture for a SaaS app"
+        ]
     
     if col1.button(starter_prompts[0], use_container_width=True):
         st.session_state.pending_prompt = starter_prompts[0]
@@ -329,12 +387,11 @@ for msg_idx, message in enumerate(st.session_state.messages):
     with st.chat_message(message["role"], avatar="🧑‍💻" if message["role"] == "user" else "⚡"):
         st.markdown(message["content"])
         
-        # If assistant has associated search sources, display them in an expandable drawer
-        if message["role"] == "assistant" and "search_data" in message and message["search_data"]:
+        # If assistant has associated search sources, display them in an expander
+        if message["role"] == "assistant" and message.get("search_data"):
             sd = message["search_data"]
             sources = sd.get("sources", [])
             related_questions = sd.get("related_questions", [])
-            related_searches = sd.get("related_searches", [])
             
             if sources:
                 with st.expander(f"📚 View {len(sources)} Verified Web Sources & Citations", expanded=False):
@@ -358,7 +415,7 @@ for msg_idx, message in enumerate(st.session_state.messages):
             
             # Show Related Questions chips
             if related_questions:
-                st.markdown("##### 💡 People Also Ask:")
+                st.markdown("##### 💡 Related Inquiries:")
                 rq_cols = st.columns(min(len(related_questions), 3))
                 for q_idx, rq in enumerate(related_questions[:3]):
                     with rq_cols[q_idx]:
@@ -367,7 +424,7 @@ for msg_idx, message in enumerate(st.session_state.messages):
                             st.rerun()
 
 # --- Handle User Input ---
-user_query = st.chat_input("Ask anything or search live web information...")
+user_query = st.chat_input("Ask anything or type a prompt...")
 
 # Check if a starter prompt was clicked
 if st.session_state.pending_prompt:
@@ -375,98 +432,117 @@ if st.session_state.pending_prompt:
     st.session_state.pending_prompt = None
 
 if user_query:
-    # 1. Display and record User Message
+    # 1. Append & render User Message
     st.session_state.messages.append({"role": "user", "content": user_query})
     with st.chat_message("user", avatar="🧑‍💻"):
         st.markdown(user_query)
         
     # 2. Assistant Response Processing
     with st.chat_message("assistant", avatar="⚡"):
-        if not serpapi_key:
-            err_text = "⚠️ **SerpApi Key Missing**: Please provide your SerpApi key in the sidebar or `.env` file to enable search."
-            st.error(err_text)
-            st.session_state.messages.append({"role": "assistant", "content": err_text})
+        search_data = None
+        
+        # Check if API Key is configured
+        if not llm_api_key and llm_provider not in ["Ollama (Local)"]:
+            err_msg = f"⚠️ **API Key Required**: Please provide your {llm_provider} API Key in the sidebar or `.env` file."
+            st.error(err_msg)
+            st.session_state.messages.append({"role": "assistant", "content": err_msg})
         else:
-            with st.status(f"🔍 Searching live web for: '{user_query}'...", expanded=True) as status_box:
-                st.write("🌐 Querying SerpApi Google Engine...")
-                search_data = perform_serp_search(
-                    query=user_query,
-                    api_key=serpapi_key,
-                    engine=search_engine_type,
-                    num_results=num_results,
-                    country=country_code,
-                    language=lang_code,
-                    safe_search=safe_search
-                )
-                
-                if "error" in search_data:
-                    status_box.update(label="❌ Search Failed", state="error", expanded=False)
-                    final_response = f"⚠️ **Search Error**: {search_data['error']}"
+            # Mode A: Web Grounded Search
+            if chat_mode == "🌐 Web-Grounded AI Search":
+                if not serpapi_key:
+                    st.warning("⚠️ **SerpApi Key Missing**: Web search grounding requires a SerpApi key. Falling back to direct AI chat.")
+                    response_placeholder = st.empty()
+                    with st.spinner("⚡ Groq AI is generating answer..."):
+                        stream_gen = stream_llm_response(
+                            provider=llm_provider,
+                            api_key=llm_api_key,
+                            model=llm_model,
+                            query=user_query,
+                            chat_history=st.session_state.messages[:-1],
+                            system_prompt=system_prompt,
+                            temperature=temperature,
+                            max_tokens=max_tokens,
+                            base_url=custom_endpoint
+                        )
+                        full_res = response_placeholder.write_stream(stream_gen)
                 else:
-                    sources_count = len(search_data.get("sources", []))
-                    st.write(f"✅ Retrieved {sources_count} sources and knowledge panels.")
+                    with st.status(f"🔍 Searching live web for: '{user_query}'...", expanded=True) as status_box:
+                        st.write("🌐 Querying Google Search Engine via SerpApi...")
+                        search_data = perform_serp_search(
+                            query=user_query,
+                            api_key=serpapi_key,
+                            engine=search_engine_type,
+                            num_results=num_results,
+                            country=country_code,
+                            language=lang_code,
+                            safe_search=safe_search
+                        )
+                        
+                        if "error" in search_data:
+                            status_box.update(label="❌ Web Search Error", state="error", expanded=False)
+                            st.error(search_data["error"])
+                        else:
+                            src_count = len(search_data.get("sources", []))
+                            st.write(f"✅ Found {src_count} relevant web sources.")
+                            st.write(f"🧠 Synthesizing verified answer with {llm_provider} ({llm_model})...")
+                            status_box.update(label="✨ Search Grounding & Synthesis Complete", state="complete", expanded=False)
                     
-                    if synthesis_mode == "Hybrid LLM + Search" and (llm_api_key or llm_provider == "Ollama (Local)"):
-                        st.write(f"🧠 Synthesizing with {llm_provider} ({llm_model})...")
-                        status_box.update(label="✨ Web Search & AI Synthesis Complete", state="complete", expanded=False)
-                        
-                        try:
-                            final_response = generate_llm_response(
-                                provider=llm_provider,
-                                api_key=llm_api_key,
-                                model=llm_model,
-                                query=user_query,
-                                search_data=search_data,
-                                chat_history=st.session_state.messages[:-1],
-                                base_url=custom_endpoint
-                            )
-                        except Exception as e:
-                            final_response = f"⚠️ LLM Synthesis failed: {str(e)}\n\n" + synthesize_direct_answer(search_data)
-                    else:
-                        st.write("📝 Formatting direct knowledge & search findings...")
-                        status_box.update(label="✨ Search Grounding Complete", state="complete", expanded=False)
-                        final_response = synthesize_direct_answer(search_data)
+                    # Stream synthesized answer
+                    response_placeholder = st.empty()
+                    stream_gen = stream_llm_response(
+                        provider=llm_provider,
+                        api_key=llm_api_key,
+                        model=llm_model,
+                        query=user_query,
+                        search_data=search_data,
+                        chat_history=st.session_state.messages[:-1],
+                        system_prompt=SEARCH_SYNTHESIS_SYSTEM_PROMPT,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        base_url=custom_endpoint
+                    )
+                    full_res = response_placeholder.write_stream(stream_gen)
+                    
+                    # Render Sources expander
+                    if search_data and search_data.get("sources"):
+                        sources = search_data["sources"]
+                        with st.expander(f"📚 View {len(sources)} Verified Web Sources & Citations", expanded=False):
+                            for src in sources:
+                                idx = src.get("index", 1)
+                                title = src.get("title", "Reference")
+                                link = src.get("link", "#")
+                                domain = src.get("domain", "")
+                                snippet = src.get("snippet", "")
+                                st.markdown(f"""
+                                <div class="source-card">
+                                    <div>
+                                        <span class="source-badge">[{idx}]</span>
+                                        <span class="source-domain">{domain}</span>
+                                    </div>
+                                    <a class="source-title" href="{link}" target="_blank">{title} ↗</a>
+                                    <div class="source-snippet">{snippet}</div>
+                                </div>
+                                """, unsafe_allow_html=True)
             
-            # Render the response
-            st.markdown(final_response)
+            # Mode B: Direct Fast AI Chat
+            else:
+                response_placeholder = st.empty()
+                stream_gen = stream_llm_response(
+                    provider=llm_provider,
+                    api_key=llm_api_key,
+                    model=llm_model,
+                    query=user_query,
+                    chat_history=st.session_state.messages[:-1],
+                    system_prompt=system_prompt,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    base_url=custom_endpoint
+                )
+                full_res = response_placeholder.write_stream(stream_gen)
             
-            # Render sources preview
-            sources = search_data.get("sources", [])
-            related_questions = search_data.get("related_questions", [])
-            
-            if sources:
-                with st.expander(f"📚 View {len(sources)} Verified Web Sources & Citations", expanded=False):
-                    for src in sources:
-                        idx = src.get("index", 1)
-                        title = src.get("title", "Reference")
-                        link = src.get("link", "#")
-                        domain = src.get("domain", "")
-                        snippet = src.get("snippet", "")
-                        
-                        st.markdown(f"""
-                        <div class="source-card">
-                            <div>
-                                <span class="source-badge">[{idx}]</span>
-                                <span class="source-domain">{domain}</span>
-                            </div>
-                            <a class="source-title" href="{link}" target="_blank">{title} ↗</a>
-                            <div class="source-snippet">{snippet}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-            if related_questions:
-                st.markdown("##### 💡 People Also Ask:")
-                rq_cols = st.columns(min(len(related_questions), 3))
-                for q_idx, rq in enumerate(related_questions[:3]):
-                    with rq_cols[q_idx]:
-                        if st.button(f"🔍 {rq['question']}", key=f"rq_new_{q_idx}", use_container_width=True):
-                            st.session_state.pending_prompt = rq["question"]
-                            st.rerun()
-
-            # Record Assistant Message
+            # Store in chat history
             st.session_state.messages.append({
                 "role": "assistant",
-                "content": final_response,
+                "content": full_res,
                 "search_data": search_data
             })
-            st.session_state.last_search_data = search_data
