@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Employee Registration - Smart Travel Expense Portal{% endblock %}
+
+{% block public_content %}
+<div class="auth-page-wrapper" style="padding: 3rem 1.5rem;">
+  <div class="auth-card" style="max-width: 650px;">
+    <div class="auth-header">
+      <div class="brand-icon" style="margin: 0 auto;">📝</div>
+      <h1>Create Employee Account</h1>
+      <p>Register to submit travel plans, expense claims, and track reimbursements</p>
+    </div>
+
+    <form method="POST" action="{{ url_for('register') }}">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label" for="name">Full Name <span class="required">*</span></label>
+          <input type="text" id="name" name="name" class="form-control" placeholder="John Doe" required autofocus>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="employee_id">Employee ID <span class="required">*</span></label>
+          <input type="text" id="employee_id" name="employee_id" class="form-control" placeholder="EMP-2026-001" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="email">Corporate Email <span class="required">*</span></label>
+          <input type="email" id="email" name="email" class="form-control" placeholder="john.doe@company.com" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="phone">Phone Number <span class="required">*</span></label>
+          <input type="tel" id="phone" name="phone" class="form-control" placeholder="+91 98765 43210" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="department">Department <span class="required">*</span></label>
+          <select id="department" name="department" class="form-control" required>
+            <option value="">Select Department</option>
+            <option value="Engineering">Engineering</option>
+            <option value="Sales & Marketing">Sales & Marketing</option>
+            <option value="Finance & Accounting">Finance & Accounting</option>
+            <option value="Human Resources">Human Resources</option>
+            <option value="Operations">Operations</option>
+            <option value="Product & Design">Product & Design</option>
+            <option value="Consulting">Consulting</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="designation">Designation <span class="required">*</span></label>
+          <input type="text" id="designation" name="designation" class="form-control" placeholder="e.g. Senior Software Engineer" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">Password <span class="required">*</span></label>
+          <input type="password" id="password" name="password" class="form-control" placeholder="Min. 6 characters" minlength="6" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="confirm_password">Confirm Password <span class="required">*</span></label>
+          <input type="password" id="confirm_password" name="confirm_password" class="form-control" placeholder="Repeat password" minlength="6" required>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.85rem; font-size: 1rem; margin-top: 1rem;">
+        ✨ Complete Registration
+      </button>
+    </form>
+
+    <div style="text-align: center; margin-top: 1.5rem; font-size: 0.9rem; color: var(--text-muted);">
+      Already have an account? <a href="{{ url_for('login') }}" style="font-weight: 600;">Sign In here</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

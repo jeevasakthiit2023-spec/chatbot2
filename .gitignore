@@ -1,6 +1,6 @@
 # Environment variables & secrets
 .env
-.env.local
+.env.*
 *.env
 secrets.toml
 
@@ -25,15 +25,20 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.pytest_cache/
 
-# Virtual environments
-venv/
-env/
-ENV/
-.venv
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs & temporary files
+*.log
+*.tmp
 
 # IDE & OS
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+

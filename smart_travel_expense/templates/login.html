@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Sign In - Smart Travel Expense Fraud Identifier{% endblock %}
+
+{% block public_content %}
+<div class="auth-page-wrapper">
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="brand-icon" style="margin: 0 auto;">🛡️</div>
+      <h1>Portal Sign In</h1>
+      <p>Enter your corporate credentials to continue</p>
+    </div>
+
+    <!-- Demo Credentials Box -->
+    <div class="demo-credentials-box">
+      <h4>⚡ Click below to fill demo credentials:</h4>
+      <div class="demo-grid">
+        <button type="button" class="demo-item" style="cursor: pointer; text-align: left; width: 100%;" onclick="fillDemo('employee@example.com', 'employee123')">
+          <strong>👨‍💼 Employee</strong><br>
+          <span style="font-size: 0.75rem; color: #475569;">employee@example.com</span>
+        </button>
+        <button type="button" class="demo-item" style="cursor: pointer; text-align: left; width: 100%;" onclick="fillDemo('manager@example.com', 'manager123')">
+          <strong>👔 Manager</strong><br>
+          <span style="font-size: 0.75rem; color: #475569;">manager@example.com</span>
+        </button>
+        <button type="button" class="demo-item" style="cursor: pointer; text-align: left; width: 100%;" onclick="fillDemo('admin@example.com', 'admin123')">
+          <strong>🛡️ Admin/Finance</strong><br>
+          <span style="font-size: 0.75rem; color: #475569;">admin@example.com</span>
+        </button>
+      </div>
+    </div>
+
+    <form method="POST" action="{{ url_for('login') }}">
+      <div class="form-group">
+        <label class="form-label" for="email">Corporate Email Address <span class="required">*</span></label>
+        <input type="email" id="email" name="email" class="form-control" placeholder="name@company.com" required autofocus>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="password">Account Password <span class="required">*</span></label>
+        <input type="password" id="password" name="password" class="form-control" placeholder="••••••••" required>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.8rem; font-size: 1rem; margin-top: 0.5rem;">
+        🔓 Sign In to Dashboard
+      </button>
+    </form>
+
+    <div style="text-align: center; margin-top: 1.5rem; font-size: 0.9rem; color: var(--text-muted);">
+      Don't have an account? <a href="{{ url_for('register') }}" style="font-weight: 600;">Register as Employee</a>
+    </div>
+  </div>
+</div>
+
+<script>
+  function fillDemo(email, pass) {
+    document.getElementById('email').value = email;
+    document.getElementById('password').value = pass;
+  }
+</script>
+{% endblock %}

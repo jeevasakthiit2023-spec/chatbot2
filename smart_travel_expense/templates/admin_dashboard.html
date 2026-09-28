@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block title %}Admin & Finance Analytics Dashboard - Smart Expense Portal{% endblock %}
+{% block page_heading %}Enterprise Admin & Finance Portal{% endblock %}
+
+{% block content %}
+<!-- AI Disclaimer -->
+<div class="ai-disclaimer">
+  <span style="font-size: 1.25rem;">🛡️</span>
+  <div>
+    <strong>AI-generated risk assessment. Final decision requires admin/finance review.</strong>
+  </div>
+</div>
+
+<!-- Admin KPI Stats Grid -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div>
+      <div class="stat-label">Total Employees</div>
+      <div class="stat-value">{{ stats.total_employees }}</div>
+      <small style="color: var(--text-muted);">Active corporate users</small>
+    </div>
+    <div class="stat-icon blue">👥</div>
+  </div>
+
+  <div class="stat-card">
+    <div>
+      <div class="stat-label">Total Expense Claims</div>
+      <div class="stat-value">₹{{ "%.2f"|format(stats.total_expenses_amount) }}</div>
+      <small style="color: var(--text-muted);">{{ stats.total_expenses_count }} claims total</small>
+    </div>
+    <div class="stat-icon purple">💳</div>
+  </div>
+
+  <div class="stat-card">
+    <div>
+      <div class="stat-label">Pending Claims</div>
+      <div class="stat-value" style="color: var(--status-pending);">{{ stats.pending_count }}</div>
+      <small style="color: var(--text-muted);">In approval pipeline</small>
+    </div>
+    <div class="stat-icon yellow">⏳</div>
+  </div>
+
+  <div class="stat-card">
+    <div>
+      <div class="stat-label">Approved Claims</div>
+      <div class="stat-value" style="color: var(--status-approved);">{{ stats.approved_count }}</div>
+      <small style="color: var(--text-muted);">Ready for payout</small>
+    </div>
+    <div class="stat-icon green">✅</div>
+  </div>
+
+  <div class="stat-card">
+    <div>
+      <div class="stat-label">High Risk Anomalies</div>
+      <div class="stat-value" style="color: {% if stats.high_risk_count > 0 %}#dc2626{% else %}#16a34a{% endif %};">
+        {{ stats.high_risk_count }}
+      </div>
+      <small style="color: var(--text-muted);">Flagged by AI Engine</small>
+    </div>
+    <div class="stat-icon red">🚨</div>
+  </div>
+
+  <div class="stat-card">
+    <div>
+      <div class="stat-label">Disbursed Reimbursements</div>
+      <div class="stat-value" style="color: #0284c7;">₹{{ "%.2f"|format(stats.total_reimbursed_amount) }}</div>
+      <small style="color: var(--text-muted);">Settled to bank/UPI</small>
+    </div>
+    <div class="stat-icon green">💰</div>
+  </div>
+</div>
+
+<!-- Admin Quick Action Links -->
+<div class="action-toolbar">
+  <a href="{{ url_for('fraud_review') }}" class="btn btn-danger">🚨 Dedicated AI Fraud Review</a>
+  <a href="{{ url_for('reimbursement') }}" class="btn btn-primary">💰 Process Reimbursements</a>
+  <a href="#employees" class="btn btn-secondary">👥 Manage Users</a>
+  <a href="#expenses" class="btn btn-secondary">💳 All Expenses</a>
+</div>
+
+<!-- Analytics Charts (Chart.js) -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+  <div class="card" style="margin-bottom: 0;">
+    <div class="card-header">
+      <h3>📊 Expense Spend by Category</h3>
+    </div>
+    <div class="card-body">
+      <div style="max-height: 280px; position: relative;">
+        <canvas id="categoryChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom: 0;">
+    <div class="card-header">
+      <h3>🛡️ AI Risk Level Distribution</h3>
+    </div>
+    <div class="card-body">
+      <div style="max-height: 280px; position: relative;">
+        <canvas id="riskChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Section 1: All Expense Claims Management -->
+<div class="card" id="expenses">
+  <div class="card-header">
+    <div>
+      <h3>💳 Enterprise Expense Claims Management</h3>
+      <p style="color: var(--text-muted); font-size: 0.85rem;">Complete listing of corporate expenses with AI triage metrics.</p>
+    </div>
+    <a href="{{ url_for('fraud_review') }}" class="btn btn-sm btn-danger">Review High Risk Only</a>
+  </div>
+  <div class="table-responsive">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Exp ID</th>
+          <th>Employee</th>
+          <th>Category</th>
+          <th>Merchant</th>
+          <th>Amount</th>
+          <th>Date</th>
+          <th>AI Risk</th>
+          <th>Risk Level</th>
+          <th>Manager</th>
+          <th>Admin Audit</th>
+          <th>Reimbursement</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for exp in all_expenses %}
+        <tr>
+          <td><strong>#EXP-{{ exp.id }}</strong></td>
+          <td>{{ exp.employee_name }}<br><small style="color: var(--text-muted);">{{ exp.employee_id }}</small></td>
+          <td><span class="badge" style="background: #f1f5f9;">{{ exp.category }}</span></td>
+          <td>{{ exp.merchant }}</td>
+          <td><strong>₹{{ "%.2f"|format(exp.amount) }}</strong></td>
+          <td>{{ exp.expense_date }}</td>
+          <td>
+            <div class="risk-meter-wrapper">
+              <span style="font-weight: 700; width: 35px;">{{ exp.risk_score }}%</span>
+              <div class="risk-progress-bar" style="width: 45px;">
+                <div class="risk-fill {% if exp.risk_score <= 30 %}low{% elif exp.risk_score <= 60 %}medium{% else %}high{% endif %}" style="width: {{ exp.risk_score }}%;"></div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <span class="badge badge-risk-{{ exp.risk_level|lower|replace(' risk', '') }}">{{ exp.risk_level }}</span>
+          </td>
+          <td>
+            <span class="badge badge-{{ exp.status|lower|replace(' ', '-') }}">{{ exp.status }}</span>
+          </td>
+          <td>
+            <span class="badge badge-{{ exp.admin_decision|lower|replace(' ', '-') }}">{{ exp.admin_decision }}</span>
+          </td>
+          <td>
+            <span class="badge badge-{{ exp.reimbursement_status|lower }}">{{ exp.reimbursement_status }}</span>
+          </td>
+          <td>
+            <div style="display: flex; gap: 0.35rem;">
+              <a href="{{ url_for('expense_details', expense_id=exp.id) }}" class="btn btn-sm btn-secondary">🔍 View</a>
+              {% if exp.status == 'Approved' and exp.reimbursement_status == 'Pending' %}
+                <a href="{{ url_for('reimbursement', expense_id=exp.id) }}" class="btn btn-sm btn-success">💰 Disburse</a>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Section 2: Employee User Management -->
+<div class="card" id="employees">
+  <div class="card-header">
+    <div>
+      <h3>👥 Registered Employees & Roles</h3>
+      <p style="color: var(--text-muted); font-size: 0.85rem;">Corporate directory and role-based access assignment.</p>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Emp ID</th>
+          <th>Full Name</th>
+          <th>Email</th>
+          <th>Phone</th>
+          <th>Department</th>
+          <th>Designation</th>
+          <th>Assigned Role</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td><strong>{{ u.employee_id }}</strong></td>
+          <td>{{ u.name }}</td>
+          <td>{{ u.email }}</td>
+          <td>{{ u.phone or '—' }}</td>
+          <td>{{ u.department or 'General' }}</td>
+          <td>{{ u.designation or 'Associate' }}</td>
+          <td>
+            <span class="user-role-badge" style="background: {% if u.role == 'Admin' %}#fee2e2; color: #991b1b;{% elif u.role == 'Manager' %}#eff6ff; color: #1e40af;{% else %}#f1f5f9; color: #334155;{% endif %}">
+              {{ u.role }}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Setup Chart.js Category spend breakdown
+  const categoryLabels = {{ chart_category_labels | tojson }};
+  const categoryData = {{ chart_category_data | tojson }};
+
+  const ctxCat = document.getElementById('categoryChart').getContext('2d');
+  new Chart(ctxCat, {
+    type: 'bar',
+    data: {
+      labels: categoryLabels,
+      datasets: [{
+        label: 'Total Spend (₹)',
+        data: categoryData,
+        backgroundColor: [
+          'rgba(59, 130, 246, 0.8)',
+          'rgba(16, 185, 129, 0.8)',
+          'rgba(245, 158, 11, 0.8)',
+          'rgba(239, 68, 68, 0.8)',
+          'rgba(139, 92, 246, 0.8)',
+          'rgba(6, 182, 212, 0.8)',
+          'rgba(107, 114, 128, 0.8)'
+        ],
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: { beginAtZero: true }
+      }
+    }
+  });
+
+  // Setup Chart.js Risk Distribution
+  const riskLabels = ['Low Risk (0-30%)', 'Medium Risk (31-60%)', 'High Risk (61-100%)'];
+  const riskData = [{{ stats.low_risk_count }}, {{ stats.medium_risk_count }}, {{ stats.high_risk_count }}];
+
+  const ctxRisk = document.getElementById('riskChart').getContext('2d');
+  new Chart(ctxRisk, {
+    type: 'doughnut',
+    data: {
+      labels: riskLabels,
+      datasets: [{
+        data: riskData,
+        backgroundColor: [
+          '#16a34a',
+          '#d97706',
+          '#dc2626'
+        ],
+        borderWidth: 2,
+        borderColor: '#ffffff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom' }
+      }
+    }
+  });
+</script>
+{% endblock %}

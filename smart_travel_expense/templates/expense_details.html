@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% block title %}Expense Claim #EXP-{{ expense.id }} Details - Smart Expense Portal{% endblock %}
+{% block page_heading %}Expense Claim Audit & Details{% endblock %}
+
+{% block content %}
+<!-- AI Disclaimer -->
+<div class="ai-disclaimer">
+  <span style="font-size: 1.25rem;">🤖</span>
+  <div>
+    <strong>AI-generated risk assessment. Final decision requires admin/finance review.</strong>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div style="display: flex; align-items: center; gap: 1rem;">
+      <h2>Expense Claim #EXP-{{ expense.id }}</h2>
+      <span class="badge badge-{{ expense.status|lower|replace(' ', '-') }}">{{ expense.status }}</span>
+      <span class="badge badge-risk-{{ fraud.risk_level|lower|replace(' risk', '') }}">{{ fraud.risk_level }}</span>
+    </div>
+    <div>
+      {% if session.get('role') == 'Employee' %}
+        <a href="{{ url_for('expense_history') }}" class="btn btn-sm btn-secondary">← Back to History</a>
+      {% elif session.get('role') == 'Manager' %}
+        <a href="{{ url_for('manager_dashboard') }}" class="btn btn-sm btn-secondary">← Back to Manager Dashboard</a>
+      {% elif session.get('role') == 'Admin' %}
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-sm btn-secondary">← Back to Admin Dashboard</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card-body">
+    <!-- Grid Information -->
+    <div class="details-grid">
+      <div class="detail-item">
+        <div class="label">Employee</div>
+        <div class="value">{{ employee.name }} ({{ employee.employee_id }})</div>
+        <small style="color: var(--text-muted);">{{ employee.department }} • {{ employee.designation }}</small>
+      </div>
+
+      <div class="detail-item">
+        <div class="label">Claim Amount</div>
+        <div class="value" style="color: var(--primary); font-size: 1.4rem;">
+          {{ expense.currency }} {{ "%.2f"|format(expense.amount) }}
+        </div>
+        <small style="color: var(--text-muted);">Paid via {{ expense.payment_method }}</small>
+      </div>
+
+      <div class="detail-item">
+        <div class="label">Category & Merchant</div>
+        <div class="value">{{ expense.category }}</div>
+        <small style="color: var(--text-muted);">Vendor: <strong>{{ expense.merchant }}</strong></small>
+      </div>
+
+      <div class="detail-item">
+        <div class="label">Expense Date</div>
+        <div class="value">{{ expense.expense_date }}</div>
+        <small style="color: var(--text-muted);">Submitted: {{ expense.created_at }}</small>
+      </div>
+
+      <div class="detail-item">
+        <div class="label">Associated Trip</div>
+        <div class="value">
+          {% if trip %}
+            #TRIP-{{ trip.id }}: {{ trip.source }} ➔ {{ trip.destination }}
+          {% else %}
+            Local / Standalone Expense
+          {% endif %}
+        </div>
+        {% if trip %}
+          <small style="color: var(--text-muted);">Dates: {{ trip.from_date }} to {{ trip.to_date }}</small>
+        {% endif %}
+      </div>
+
+      <div class="detail-item">
+        <div class="label">Reimbursement Settlement</div>
+        <div class="value">
+          <span class="badge badge-{{ expense.reimbursement_status|lower }}">{{ expense.reimbursement_status }}</span>
+        </div>
+        <small style="color: var(--text-muted);">Admin Status: {{ expense.admin_decision }}</small>
+      </div>
+    </div>
+
+    <!-- Business Purpose and Notes -->
+    <div style="margin-top: 1.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.25rem;">
+      <div class="detail-item">
+        <div class="label">Business Purpose</div>
+        <div style="font-size: 0.95rem; color: #334155; margin-top: 0.35rem;">
+          {{ expense.business_purpose }}
+        </div>
+      </div>
+      <div class="detail-item">
+        <div class="label">Additional Remarks / Justification</div>
+        <div style="font-size: 0.95rem; color: #334155; margin-top: 0.35rem;">
+          {{ expense.notes or 'No additional remarks provided.' }}
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Fraud Detection Audit Panel -->
+    <div style="margin-top: 2rem;">
+      <h3 style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
+        <span>🧠</span> AI Multi-Vector Fraud Audit Analysis
+      </h3>
+
+      <div style="display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap; background: #f8fafc; padding: 1.25rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+        <div style="text-align: center; min-width: 140px;">
+          <div style="font-size: 2.2rem; font-weight: 800; font-family: var(--font-heading); color: {% if fraud.risk_score <= 30 %}var(--risk-low){% elif fraud.risk_score <= 60 %}var(--risk-med){% else %}var(--risk-high){% endif %};">
+            {{ fraud.risk_score }}%
+          </div>
+          <div style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted);">Fraud Risk Score</div>
+        </div>
+
+        <div style="flex-grow: 1;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.4rem;">
+            <span style="font-size: 0.85rem; font-weight: 600;">Overall Risk Assessment:</span>
+            <span class="badge badge-risk-{{ fraud.risk_level|lower|replace(' risk', '') }}">{{ fraud.risk_level }}</span>
+          </div>
+          <div class="risk-progress-bar" style="height: 12px;">
+            <div class="risk-fill {% if fraud.risk_score <= 30 %}low{% elif fraud.risk_score <= 60 %}medium{% else %}high{% endif %}" style="width: {{ fraud.risk_score }}%;"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-top: 0.3rem;">
+            <span>0% Low</span>
+            <span>30%</span>
+            <span>60% Medium</span>
+            <span>100% High Risk</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Fraud Reasons Breakdown -->
+      <div class="fraud-reasons-box {% if fraud.risk_score <= 30 %}clean{% endif %}">
+        <h4 style="color: {% if fraud.risk_score <= 30 %}#15803d{% else %}#991b1b{% endif %}; font-size: 0.95rem;">
+          {% if fraud.risk_score <= 30 %}
+            ✅ AI Verification Findings (Clean Audit):
+          {% else %}
+            ⚠️ Detected Fraud Flags & Anomaly Triggers:
+          {% endif %}
+        </h4>
+        <ul class="reasons-list">
+          {% for reason in fraud_reasons_list %}
+            <li>{{ reason }}</li>
+          {% endfor %}
+        </ul>
+        <div style="margin-top: 0.75rem; font-size: 0.85rem; color: var(--text-muted); border-top: 1px dashed rgba(0,0,0,0.1); padding-top: 0.5rem;">
+          <strong>Receipt Heuristics / OCR Note:</strong> {{ fraud.ocr_summary }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Uploaded Receipt Preview -->
+    <div style="margin-top: 2rem;">
+      <h3 style="margin-bottom: 0.75rem;">🧾 Uploaded Receipt Voucher</h3>
+      {% if expense.receipt_filename %}
+        <div style="background: #f8fafc; padding: 1.25rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+          <div>
+            <strong>Attached File:</strong> {{ expense.receipt_filename }}
+          </div>
+          <a href="{{ url_for('uploaded_file', filename=expense.receipt_filename) }}" target="_blank" class="btn btn-sm btn-primary">
+            👁️ View / Download Receipt
+          </a>
+        </div>
+      {% else %}
+        <div style="padding: 1rem; background: #fee2e2; border-radius: var(--radius-md); color: #991b1b; font-size: 0.9rem;">
+          ⚠️ No receipt voucher was uploaded for this expense claim.
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Manager/Admin Action Context (if applicable) -->
+    {% if session.get('role') == 'Manager' and expense.status == 'Pending' %}
+      <div style="margin-top: 2.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+        <h3 style="margin-bottom: 1rem;">👔 Manager Decision Actions</h3>
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+          <form method="POST" action="{{ url_for('manager_action', expense_id=expense.id) }}" style="display: inline;">
+            <input type="hidden" name="action" value="Approve">
+            <button type="submit" class="btn btn-success">✅ Approve Expense Claim</button>
+          </form>
+
+          <form method="POST" action="{{ url_for('manager_action', expense_id=expense.id) }}" style="display: inline;">
+            <input type="hidden" name="action" value="Reject">
+            <button type="submit" class="btn btn-danger">❌ Reject Expense</button>
+          </form>
+
+          <form method="POST" action="{{ url_for('manager_action', expense_id=expense.id) }}" style="display: inline;">
+            <input type="hidden" name="action" value="Request Clarification">
+            <button type="submit" class="btn btn-warning">💬 Request Clarification</button>
+          </form>
+        </div>
+      </div>
+    {% endif %}
+
+    <!-- Reimbursement Details (if processed) -->
+    {% if reimbursement_data %}
+      <div style="margin-top: 2.5rem; padding: 1.5rem; background: #eff6ff; border-radius: var(--radius-lg); border: 1px solid #bfdbfe;">
+        <h3 style="color: #1e40af; margin-bottom: 1rem;">💰 Finance Reimbursement Disbursement Record</h3>
+        <div class="details-grid">
+          <div>
+            <div class="label">Disbursed Amount</div>
+            <div class="value" style="color: #16a34a;">₹{{ "%.2f"|format(reimbursement_data.reimbursement_amount) }}</div>
+          </div>
+          <div>
+            <div class="label">Transaction Reference ID</div>
+            <div class="value"><code>{{ reimbursement_data.transaction_id }}</code></div>
+          </div>
+          <div>
+            <div class="label">Payment Date</div>
+            <div class="value">{{ reimbursement_data.payment_date }}</div>
+          </div>
+          <div>
+            <div class="label">Disbursement Channel</div>
+            <div class="value">{{ reimbursement_data.payment_method }}</div>
+          </div>
+        </div>
+        {% if reimbursement_data.comments %}
+          <div style="margin-top: 1rem; font-size: 0.9rem; color: #1e3a8a;">
+            <strong>Finance Remarks:</strong> {{ reimbursement_data.comments }}
+          </div>
+        {% endif %}
+      </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

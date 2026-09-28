@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block title %}Smart Reimbursement Disbursement Portal - Admin{% endblock %}
+{% block page_heading %}Finance Reimbursement Settlement Portal{% endblock %}
+
+{% block content %}
+<!-- Section 1: Process Form if an expense is selected -->
+{% if selected_expense %}
+<div class="card" style="border: 2px solid #3b82f6;">
+  <div class="card-header" style="background: #eff6ff;">
+    <div>
+      <h3 style="color: #1e40af;">💳 Process Settlement for Claim #EXP-{{ selected_expense.id }}</h3>
+      <p style="color: #3b82f6; font-size: 0.85rem;">Employee: <strong>{{ selected_expense.employee_name }}</strong> ({{ selected_expense.employee_id }}) | Category: {{ selected_expense.category }}</p>
+    </div>
+    <a href="{{ url_for('reimbursement') }}" class="btn btn-sm btn-secondary">Cancel Selection</a>
+  </div>
+
+  <div class="card-body">
+    <form method="POST" action="{{ url_for('process_reimbursement') }}">
+      <input type="hidden" name="expense_id" value="{{ selected_expense.id }}">
+      <input type="hidden" name="employee_id" value="{{ selected_expense.employee_id }}">
+      <input type="hidden" name="approved_amount" value="{{ selected_expense.amount }}">
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Claimed & Approved Amount</label>
+          <input type="text" class="form-control" value="₹{{ '%.2f'|format(selected_expense.amount) }}" readonly style="background: #f1f5f9; font-weight: 700;">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="reimbursement_amount">Reimbursement Payout Amount (₹) <span class="required">*</span></label>
+          <input type="number" id="reimbursement_amount" name="reimbursement_amount" class="form-control" value="{{ selected_expense.amount }}" step="0.01" min="0" required>
+          <div class="form-helper">Can adjust for corporate per-diem deduction or partial settlement.</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="payment_method">Disbursement Payment Method <span class="required">*</span></label>
+          <select id="payment_method" name="payment_method" class="form-control" required>
+            <option value="Direct Bank Transfer (NEFT/IMPS)">Direct Bank Transfer (NEFT/IMPS)</option>
+            <option value="UPI Direct Payout" selected>UPI Direct Payout</option>
+            <option value="Corporate Payroll Adjustment">Corporate Payroll Adjustment</option>
+            <option value="Corporate Card Offset">Corporate Card Offset</option>
+            <option value="Cash Voucher">Cash Voucher</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="payment_date">Payment Date <span class="required">*</span></label>
+          <input type="date" id="payment_date" name="payment_date" class="form-control" value="{{ today_date }}" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="transaction_id">Bank / UPI Reference / Transaction ID <span class="required">*</span></label>
+          <input type="text" id="transaction_id" name="transaction_id" class="form-control" placeholder="e.g. TXN-2026-98124508" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="status">Disbursement Status <span class="required">*</span></label>
+          <select id="status" name="status" class="form-control" required>
+            <option value="Reimbursed" selected>Reimbursed (Paid / Completed)</option>
+            <option value="Processing">Processing (Scheduled Bank Batch)</option>
+            <option value="Approved">Approved (Awaiting Funds)</option>
+            <option value="Rejected">Rejected</option>
+          </select>
+        </div>
+
+        <div class="form-group full-width">
+          <label class="form-label" for="comments">Finance Audit & Settlement Notes</label>
+          <textarea id="comments" name="comments" class="form-control" rows="2" placeholder="e.g. Approved and wired to employee registered bank account. Transaction receipt confirmed."></textarea>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+        <button type="submit" class="btn btn-success" style="padding: 0.8rem 2.5rem;">
+          💰 Complete Reimbursement Payout
+        </button>
+        <a href="{{ url_for('reimbursement') }}" class="btn btn-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<!-- Section 2: Approved Claims Ready For Payout -->
+<div class="card">
+  <div class="card-header">
+    <div>
+      <h2>⏳ Approved Claims Awaiting Payout</h2>
+      <p style="color: var(--text-muted); font-size: 0.85rem;">
+        These expense claims have been validated by managers/compliance and are ready for fund disbursement.
+      </p>
+    </div>
+  </div>
+  <div class="table-responsive">
+    {% if approved_unpaid %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Exp ID</th>
+          <th>Employee</th>
+          <th>Category</th>
+          <th>Merchant</th>
+          <th>Approved Amount</th>
+          <th>Expense Date</th>
+          <th>AI Risk</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for exp in approved_unpaid %}
+        <tr>
+          <td><strong>#EXP-{{ exp.id }}</strong></td>
+          <td>{{ exp.employee_name }}<br><small style="color: var(--text-muted);">{{ exp.employee_id }}</small></td>
+          <td><span class="badge" style="background: #f1f5f9;">{{ exp.category }}</span></td>
+          <td>{{ exp.merchant }}</td>
+          <td><strong style="color: #16a34a; font-size: 1.05rem;">₹{{ "%.2f"|format(exp.amount) }}</strong></td>
+          <td>{{ exp.expense_date }}</td>
+          <td>
+            <span class="badge badge-risk-{{ exp.risk_level|lower|replace(' risk', '') }}">{{ exp.risk_score }}%</span>
+          </td>
+          <td>
+            <span class="badge badge-{{ exp.reimbursement_status|lower }}">{{ exp.reimbursement_status }}</span>
+          </td>
+          <td>
+            <a href="{{ url_for('reimbursement', expense_id=exp.id) }}" class="btn btn-sm btn-primary">
+              💰 Disburse Payout
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <div class="icon">✨</div>
+      <h3>All Approved Claims Have Been Settled!</h3>
+      <p>There are no pending claims requiring disbursement at this time.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Section 3: Completed Reimbursement History -->
+<div class="card">
+  <div class="card-header">
+    <div>
+      <h3>📑 Settled Reimbursement Ledger</h3>
+      <p style="color: var(--text-muted); font-size: 0.85rem;">Audited historical disbursement transactions and transaction proofs.</p>
+    </div>
+  </div>
+  <div class="table-responsive">
+    {% if completed_reimbursements %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Ref ID</th>
+          <th>Exp ID</th>
+          <th>Employee</th>
+          <th>Disbursed</th>
+          <th>Channel</th>
+          <th>Payment Date</th>
+          <th>Transaction ID</th>
+          <th>Status</th>
+          <th>Finance Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in completed_reimbursements %}
+        <tr>
+          <td><strong>#REIMB-{{ r.id }}</strong></td>
+          <td><a href="{{ url_for('expense_details', expense_id=r.expense_id) }}">#EXP-{{ r.expense_id }}</a></td>
+          <td>{{ r.employee_name }}<br><small style="color: var(--text-muted);">{{ r.employee_id }}</small></td>
+          <td><strong style="color: #16a34a;">₹{{ "%.2f"|format(r.reimbursement_amount) }}</strong></td>
+          <td>{{ r.payment_method }}</td>
+          <td>{{ r.payment_date }}</td>
+          <td><code>{{ r.transaction_id }}</code></td>
+          <td>
+            <span class="badge badge-{{ r.status|lower }}">{{ r.status }}</span>
+          </td>
+          <td style="max-width: 200px; font-size: 0.85rem; color: #475569;">
+            {{ r.comments or 'Completed successfully.' }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <div class="icon">📜</div>
+      <h3>No Historical Disbursements Recorded</h3>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

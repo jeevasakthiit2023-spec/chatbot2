@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block title %}AI Fraud Audit & Investigation Review - Smart Expense Portal{% endblock %}
+{% block page_heading %}AI Fraud Investigation & Audit Console{% endblock %}
+
+{% block content %}
+<!-- Mandatory AI Disclaimer -->
+<div class="ai-disclaimer warning">
+  <span style="font-size: 1.25rem;">⚠️</span>
+  <div>
+    <strong>Human-in-the-Loop Governance Notice:</strong>
+    AI-generated risk assessment. Final decision requires admin/finance review. Do not automatically reject claims based solely on algorithmic flags.
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div>
+      <h2>🚨 High & Medium Risk Claims Under Investigation</h2>
+      <p style="color: var(--text-muted); font-size: 0.85rem;">
+        Examine flagged duplicate claims, amount deviations, policy breaches, and receipt inconsistencies.
+      </p>
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+      <a href="{{ url_for('admin_dashboard') }}" class="btn btn-sm btn-secondary">Admin Dashboard</a>
+    </div>
+  </div>
+
+  <div class="card-body">
+    {% if flagged_expenses %}
+      <div style="display: flex; flex-direction: column; gap: 1.75rem;">
+        {% for exp in flagged_expenses %}
+        <div class="card" style="margin-bottom: 0; border: 1.5px solid {% if exp.risk_score > 60 %}#fca5a5{% else %}#fde68a{% endif %}; background: #ffffff;">
+          <div class="card-header" style="background: {% if exp.risk_score > 60 %}#fef2f2{% else %}#fffbeb{% endif %};">
+            <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+              <span style="font-size: 1.1rem; font-weight: 800;">Claim #EXP-{{ exp.id }}</span>
+              <span class="badge badge-risk-{{ exp.risk_level|lower|replace(' risk', '') }}">{{ exp.risk_level }} ({{ exp.risk_score }}%)</span>
+              <span class="badge badge-{{ exp.admin_decision|lower|replace(' ', '-') }}">Audit: {{ exp.admin_decision }}</span>
+              <span class="badge badge-{{ exp.status|lower|replace(' ', '-') }}">Manager: {{ exp.status }}</span>
+            </div>
+            <div>
+              <span style="font-size: 1.25rem; font-weight: 800; color: var(--primary);">₹{{ "%.2f"|format(exp.amount) }}</span>
+            </div>
+          </div>
+
+          <div class="card-body">
+            <!-- Row 1: Employee and Merchant metadata -->
+            <div class="details-grid" style="margin-bottom: 1.25rem;">
+              <div class="detail-item">
+                <div class="label">Employee Claiming</div>
+                <div class="value">{{ exp.employee_name }}</div>
+                <small style="color: var(--text-muted);">Emp ID: <strong>{{ exp.employee_id }}</strong> | Dept: {{ exp.department }}</small>
+              </div>
+
+              <div class="detail-item">
+                <div class="label">Category & Vendor</div>
+                <div class="value">{{ exp.category }}</div>
+                <small style="color: var(--text-muted);">Merchant: <strong>{{ exp.merchant }}</strong></small>
+              </div>
+
+              <div class="detail-item">
+                <div class="label">Claim Date</div>
+                <div class="value">{{ exp.expense_date }}</div>
+                <small style="color: var(--text-muted);">Submitted on {{ exp.created_at }}</small>
+              </div>
+
+              <div class="detail-item">
+                <div class="label">Receipt Voucher</div>
+                <div class="value">
+                  {% if exp.receipt_filename %}
+                    <a href="{{ url_for('uploaded_file', filename=exp.receipt_filename) }}" target="_blank" class="btn btn-sm btn-primary" style="margin-top: 0.2rem;">
+                      👁️ Inspect Receipt
+                    </a>
+                  {% else %}
+                    <span style="color: #dc2626; font-size: 0.9rem; font-weight: 700;">❌ Missing Receipt</span>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 2: Purpose -->
+            <div style="background: #f8fafc; padding: 0.85rem 1.1rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 1rem;">
+              <div class="label" style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Stated Business Purpose:</div>
+              <div style="font-size: 0.95rem; color: #1e293b; margin-top: 0.2rem;">{{ exp.business_purpose }}</div>
+              {% if exp.notes %}
+                <div style="margin-top: 0.35rem; font-size: 0.85rem; color: #475569;">
+                  <em>Notes: {{ exp.notes }}</em>
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- Row 3: AI Detected Reasons Box -->
+            <div class="fraud-reasons-box" style="margin-top: 0;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h4 style="color: #991b1b; font-size: 0.9rem; margin: 0;">
+                  🚩 AI Audit Flag Vector Breakdown:
+                </h4>
+                <span style="font-size: 0.8rem; color: #64748b;">Algorithm: Isolation Forest + Policy Matrix</span>
+              </div>
+              <ul class="reasons-list">
+                {% for reason in exp.reasons_list %}
+                  <li>{{ reason }}</li>
+                {% endfor %}
+              </ul>
+              <div style="margin-top: 0.5rem; font-size: 0.8rem; color: #64748b; border-top: 1px dashed #fca5a5; padding-top: 0.4rem;">
+                <strong>OCR / Receipt Metadata Note:</strong> {{ exp.ocr_summary }}
+              </div>
+            </div>
+
+            <!-- Row 4: Admin Audit Action Decision Panel -->
+            <div style="margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+              <div style="font-size: 0.9rem; font-weight: 600; color: var(--text-main);">
+                Execute Official Human Audit Verdict:
+              </div>
+
+              <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <form method="POST" action="{{ url_for('admin_fraud_decision', expense_id=exp.id) }}" style="display: inline;">
+                  <input type="hidden" name="decision" value="Genuine">
+                  <button type="submit" class="btn btn-sm btn-success">
+                    ✅ Mark as Genuine
+                  </button>
+                </form>
+
+                <form method="POST" action="{{ url_for('admin_fraud_decision', expense_id=exp.id) }}" style="display: inline;">
+                  <input type="hidden" name="decision" value="Suspicious">
+                  <button type="submit" class="btn btn-sm btn-warning">
+                    ⚠️ Mark as Suspicious
+                  </button>
+                </form>
+
+                <form method="POST" action="{{ url_for('admin_fraud_decision', expense_id=exp.id) }}" style="display: inline;">
+                  <input type="hidden" name="decision" value="Fraudulent">
+                  <button type="submit" class="btn btn-sm btn-danger">
+                    🚫 Mark as Fraudulent
+                  </button>
+                </form>
+
+                <form method="POST" action="{{ url_for('admin_fraud_decision', expense_id=exp.id) }}" style="display: inline;">
+                  <input type="hidden" name="decision" value="Needs Info">
+                  <button type="submit" class="btn btn-sm btn-secondary">
+                    💬 Request More Information
+                  </button>
+                </form>
+              </div>
+            </div>
+
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <div class="icon">✅</div>
+        <h3>No Flagged Claims Pending Investigation</h3>
+        <p>All expense claims currently have clean audit profiles or have already been triaged by the compliance team.</p>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary" style="margin-top: 1rem;">Return to Admin Dashboard</a>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

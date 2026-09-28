@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Smart Travel Expense Fraud Identifier & Portal - Home{% endblock %}
+
+{% block public_content %}
+<div class="hero-section">
+  <div class="hero-badge">
+    <span>🤖</span> Next-Gen AI Auditing & Expense Governance
+  </div>
+  <h1 class="hero-title">
+    AI Powered Smart Travel Expense <span>Fraud Identifier</span> & Smart Reimbursement Portal
+  </h1>
+  <p class="hero-desc">
+    An intelligent corporate travel governance platform equipped with machine learning anomaly detection, duplicate receipt fingerprinting, policy enforcement, and multi-tier approval workflows.
+  </p>
+
+  <div class="hero-cta">
+    <a href="{{ url_for('login') }}" class="btn btn-primary" style="padding: 0.9rem 2.2rem; font-size: 1.05rem;">
+      🔐 Access Portal
+    </a>
+    <a href="{{ url_for('register') }}" class="btn btn-secondary" style="padding: 0.9rem 2.2rem; font-size: 1.05rem;">
+      📝 Employee Registration
+    </a>
+  </div>
+
+  <div class="demo-credentials-box" style="max-width: 700px; margin: 0 auto 3rem auto; text-align: left;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+      <h4 style="margin: 0;">⚡ Quick Demo Login Credentials</h4>
+      <span style="font-size: 0.75rem; background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 4px; font-weight: bold;">Ready to Test</span>
+    </div>
+    <div class="demo-grid">
+      <div class="demo-item">
+        <strong>👨‍💼 Employee:</strong><br>
+        <code>employee@example.com</code><br>
+        <code>employee123</code>
+      </div>
+      <div class="demo-item">
+        <strong>👔 Manager:</strong><br>
+        <code>manager@example.com</code><br>
+        <code>manager123</code>
+      </div>
+      <div class="demo-item">
+        <strong>🛡️ Admin / Finance:</strong><br>
+        <code>admin@example.com</code><br>
+        <code>admin123</code>
+      </div>
+    </div>
+  </div>
+
+  <!-- Key Features Grid -->
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">🧠</div>
+      <h3>AI Fraud Detection</h3>
+      <p>Scikit-Learn Isolation Forest and 10 rule vectors continuously inspect duplicate claims, inflated limits, date anomalies, and suspicious patterns.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">🧾</div>
+      <h3>Receipt Verification</h3>
+      <p>Integrated digital receipt analyzer and hash fingerprinting prevents duplicate bill reuse and flags mismatched vendor categories.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">💳</div>
+      <h3>Smart Reimbursement</h3>
+      <p>Seamless settlement pipeline allowing Finance to approve, disburse through UPI/Bank transfer, and generate transaction tracking numbers.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">✈️</div>
+      <h3>Travel Pre-Approval</h3>
+      <p>Submit domestic and international corporate itineraries with budget estimates before embarking on business trips.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">⚖️</div>
+      <h3>Approval Workflow</h3>
+      <p>Multi-tier validation for Managers and Admins with contextual AI risk indicators, explanation breakdowns, and clarification channels.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">🔒</div>
+      <h3>Enterprise Security</h3>
+      <p>Role-based session authorization, salted password encryption via Werkzeug, and secure server-side file management.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

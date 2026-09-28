@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Smart Travel Expense Fraud Identifier & Portal{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <!-- Chart.js for beautiful analytics -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+  {% if session.get('user_id') %}
+  <!-- Authenticated Dashboard Layout -->
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">🛡️</div>
+        <div>
+          <h2>SmartExpense</h2>
+          <small style="color: #94a3b8; font-size: 0.75rem;">AI Fraud & Portal</small>
+        </div>
+      </div>
+
+      <div class="sidebar-user">
+        <div class="user-avatar">{{ session.get('user_name', 'U')[0]|upper }}</div>
+        <div class="user-info">
+          <div class="user-name" title="{{ session.get('user_name') }}">{{ session.get('user_name') }}</div>
+          <span class="user-role-badge">{{ session.get('role') }}</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-menu">
+        <div class="menu-category">Main Menu</div>
+
+        {% if session.get('role') == 'Employee' %}
+          <a href="{{ url_for('employee_dashboard') }}" class="sidebar-link {% if request.endpoint == 'employee_dashboard' %}active{% endif %}">
+            <span class="icon">📊</span> Dashboard
+          </a>
+          <a href="{{ url_for('travel_request') }}" class="sidebar-link {% if request.endpoint == 'travel_request' %}active{% endif %}">
+            <span class="icon">✈️</span> Travel Request
+          </a>
+          <a href="{{ url_for('expense_form') }}" class="sidebar-link {% if request.endpoint == 'expense_form' %}active{% endif %}">
+            <span class="icon">➕</span> Submit Expense
+          </a>
+          <a href="{{ url_for('expense_history') }}" class="sidebar-link {% if request.endpoint == 'expense_history' %}active{% endif %}">
+            <span class="icon">📑</span> Expense History
+          </a>
+        {% elif session.get('role') == 'Manager' %}
+          <a href="{{ url_for('manager_dashboard') }}" class="sidebar-link {% if request.endpoint == 'manager_dashboard' %}active{% endif %}">
+            <span class="icon">📊</span> Manager Dashboard
+          </a>
+          <a href="{{ url_for('manager_dashboard') }}#travel-requests" class="sidebar-link">
+            <span class="icon">✈️</span> Travel Requests
+          </a>
+          <a href="{{ url_for('manager_dashboard') }}#expense-claims" class="sidebar-link">
+            <span class="icon">🧾</span> Expense Claims
+          </a>
+          <a href="{{ url_for('manager_dashboard') }}#high-risk" class="sidebar-link">
+            <span class="icon">🚨</span> High Risk Overview
+          </a>
+        {% elif session.get('role') == 'Admin' %}
+          <a href="{{ url_for('admin_dashboard') }}" class="sidebar-link {% if request.endpoint == 'admin_dashboard' %}active{% endif %}">
+            <span class="icon">📈</span> Admin Analytics
+          </a>
+          <a href="{{ url_for('admin_dashboard') }}#employees" class="sidebar-link">
+            <span class="icon">👥</span> Employees
+          </a>
+          <a href="{{ url_for('admin_dashboard') }}#expenses" class="sidebar-link">
+            <span class="icon">💳</span> All Expenses
+          </a>
+          <a href="{{ url_for('fraud_review') }}" class="sidebar-link {% if request.endpoint == 'fraud_review' %}active{% endif %}">
+            <span class="icon">🔍</span> AI Fraud Review
+          </a>
+          <a href="{{ url_for('reimbursement') }}" class="sidebar-link {% if request.endpoint == 'reimbursement' %}active{% endif %}">
+            <span class="icon">💰</span> Reimbursements
+          </a>
+        {% endif %}
+
+        <div class="menu-category" style="margin-top: 1rem;">General</div>
+        <a href="{{ url_for('index') }}" class="sidebar-link">
+          <span class="icon">🏠</span> Portal Home
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <a href="{{ url_for('logout') }}" class="logout-btn">
+          <span>🚪</span> Sign Out
+        </a>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="main-layout">
+      <header class="top-navbar">
+        <div class="page-title">
+          <h1>{% block page_heading %}Dashboard{% endblock %}</h1>
+        </div>
+        <div class="top-nav-actions">
+          <span style="font-size: 0.9rem; color: var(--text-muted);">
+            Emp ID: <strong>{{ session.get('employee_id') }}</strong>
+          </span>
+          <a href="{{ url_for('logout') }}" class="btn btn-sm btn-secondary">Logout</a>
+        </div>
+      </header>
+
+      <main class="content-body">
+        <!-- Flash Notification Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-messages">
+              {% for category, message in messages %}
+                <div class="flash-alert flash-{{ category }}">
+                  <span>{{ message }}</span>
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+  {% else %}
+  <!-- Public Layout (Landing, Login, Register) -->
+  <header class="public-nav">
+    <a href="{{ url_for('index') }}" class="brand-logo">
+      <div class="brand-icon">🛡️</div>
+      <span>SmartExpense AI</span>
+    </a>
+    <div class="nav-links">
+      <a href="{{ url_for('index') }}">Home</a>
+      <a href="{{ url_for('login') }}" class="nav-btn nav-btn-outline">Login</a>
+      <a href="{{ url_for('register') }}" class="nav-btn nav-btn-primary">Register</a>
+    </div>
+  </header>
+
+  <main style="flex: 1;">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-messages" style="max-width: 800px; margin: 1.5rem auto 0; padding: 0 1.5rem;">
+          {% for category, message in messages %}
+            <div class="flash-alert flash-{{ category }}">
+              <span>{{ message }}</span>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block public_content %}{% endblock %}
+  </main>
+
+  <footer style="text-align: center; padding: 2rem; background: #ffffff; border-top: 1px solid var(--border-color); color: var(--text-muted); font-size: 0.9rem;">
+    <p>© 2026 AI Powered Smart Travel Expense Fraud Identifier & Reimbursement Portal. Built for Academic & Enterprise Demonstration.</p>
+  </footer>
+  {% endif %}
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

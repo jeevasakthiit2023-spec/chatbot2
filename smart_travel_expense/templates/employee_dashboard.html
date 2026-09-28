@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+
+{% block title %}Employee Dashboard - Smart Expense Portal{% endblock %}
+{% block page_heading %}Employee Portal Dashboard{% endblock %}
+
+{% block content %}
+<!-- AI Disclaimer -->
+<div class="ai-disclaimer">
+  <span style="font-size: 1.25rem;">🤖</span>
+  <div>
+    <strong>AI Risk Evaluation Active:</strong> All submitted expense claims undergo automated multi-vector heuristic & machine learning screening. <em>AI-generated risk assessment. Final decision requires admin/finance review.</em>
+  </div>
+</div>
+
+<!-- Employee Header Profile Card -->
+<div class="card" style="background: linear-gradient(135deg, #1e40af, #0284c7); color: #ffffff; border: none; margin-bottom: 1.75rem;">
+  <div class="card-body" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: gap: 1.5rem; flex-wrap: wrap;">
+    <div>
+      <h2 style="color: #ffffff; font-size: 1.6rem; margin-bottom: 0.35rem;">Welcome back, {{ user.name }}!</h2>
+      <p style="opacity: 0.9; font-size: 0.95rem;">
+        Employee ID: <strong>{{ user.employee_id }}</strong> &nbsp;|&nbsp;
+        Department: <strong>{{ user.department }}</strong> &nbsp;|&nbsp;
+        Designation: <strong>{{ user.designation }}</strong>
+      </p>
+    </div>
+    <div class="action-toolbar" style="margin: 0;">
+      <a href="{{ url_for('travel_request') }}" class="btn" style="background: #ffffff; color: var(--primary); font-weight: 700;">
+        ✈️ New Travel Request
+      </a>
+      <a href="{{ url_for('expense_form') }}" class="btn" style="background: #22c55e; color: #ffffff; font-weight: 700;">
+        ➕ Submit Expense
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- KPI Stats Cards -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div>
+      <div class="stat-label">Total Expenses</div>
+      <div class="stat-value">₹{{ "%.2f"|format(stats.total_amount) }}</div>
+      <small style="color: var(--text-muted);">{{ stats.total_count }} claims filed</small>
+    </div>
+    <div class="stat-icon blue">💳</div>
+  </div>
+
+  <div class="stat-card">
+    <div>
+      <div class="stat-label">Pending Approval</div>
+      <div class="stat-value">{{ stats.pending_count }}</div>
+      <small style="color: var(--text-muted);">Awaiting review</small>
+    </div>
+    <div class="stat-icon yellow">⏳</div>
+  </div>
+
+  <div class="stat-card">
+    <div>
+      <div class="stat-label">Approved Claims</div>
+      <div class="stat-value">{{ stats.approved_count }}</div>
+      <small style="color: var(--text-muted);">Manager verified</small>
+    </div>
+    <div class="stat-icon green">✅</div>
+  </div>
+
+  <div class="stat-card">
+    <div>
+      <div class="stat-label">Rejected Claims</div>
+      <div class="stat-value">{{ stats.rejected_count }}</div>
+      <small style="color: var(--text-muted);">Not approved</small>
+    </div>
+    <div class="stat-icon red">❌</div>
+  </div>
+
+  <div class="stat-card">
+    <div>
+      <div class="stat-label">Total Reimbursed</div>
+      <div class="stat-value" style="color: #0284c7;">₹{{ "%.2f"|format(stats.reimbursed_amount) }}</div>
+      <small style="color: var(--text-muted);">Disbursed to account</small>
+    </div>
+    <div class="stat-icon purple">💰</div>
+  </div>
+
+  <div class="stat-card">
+    <div>
+      <div class="stat-label">AI Fraud Alerts</div>
+      <div class="stat-value" style="color: {% if stats.high_risk_count > 0 %}#dc2626{% else %}#16a34a{% endif %};">
+        {{ stats.high_risk_count }}
+      </div>
+      <small style="color: var(--text-muted);">High risk flags</small>
+    </div>
+    <div class="stat-icon {% if stats.high_risk_count > 0 %}red{% else %}green{% endif %}">🚨</div>
+  </div>
+</div>
+
+<!-- Quick Actions Toolbar -->
+<div class="action-toolbar">
+  <a href="{{ url_for('travel_request') }}" class="btn btn-primary">✈️ Submit Travel Request</a>
+  <a href="{{ url_for('expense_form') }}" class="btn btn-primary">➕ Submit Expense</a>
+  <a href="{{ url_for('expense_history') }}" class="btn btn-secondary">📑 View Expense History</a>
+</div>
+
+<!-- Recent Expenses Table -->
+<div class="card">
+  <div class="card-header">
+    <h3>Recent Expense Submissions & AI Assessment</h3>
+    <a href="{{ url_for('expense_history') }}" class="btn btn-sm btn-secondary">View All</a>
+  </div>
+  <div class="table-responsive">
+    {% if recent_expenses %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Exp ID</th>
+          <th>Category</th>
+          <th>Merchant</th>
+          <th>Amount</th>
+          <th>Date</th>
+          <th>AI Risk Score</th>
+          <th>Risk Level</th>
+          <th>Manager Status</th>
+          <th>Reimbursement</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for exp in recent_expenses %}
+        <tr>
+          <td><strong>#EXP-{{ exp.id }}</strong></td>
+          <td>
+            <span class="badge" style="background: #f1f5f9; color: #334155;">{{ exp.category }}</span>
+          </td>
+          <td>{{ exp.merchant }}</td>
+          <td><strong>₹{{ "%.2f"|format(exp.amount) }}</strong></td>
+          <td>{{ exp.expense_date }}</td>
+          <td>
+            <div class="risk-meter-wrapper">
+              <span style="font-weight: 700; width: 35px;">{{ exp.risk_score }}%</span>
+              <div class="risk-progress-bar" style="width: 60px;">
+                <div class="risk-fill {% if exp.risk_score <= 30 %}low{% elif exp.risk_score <= 60 %}medium{% else %}high{% endif %}" style="width: {{ exp.risk_score }}%;"></div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <span class="badge badge-risk-{{ exp.risk_level|lower|replace(' risk', '') }}">
+              {{ exp.risk_level }}
+            </span>
+          </td>
+          <td>
+            <span class="badge badge-{{ exp.status|lower|replace(' ', '-') }}">{{ exp.status }}</span>
+          </td>
+          <td>
+            <span class="badge badge-{{ exp.reimbursement_status|lower }}">{{ exp.reimbursement_status }}</span>
+          </td>
+          <td>
+            <a href="{{ url_for('expense_details', expense_id=exp.id) }}" class="btn btn-sm btn-secondary">
+              🔍 Details
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <div class="icon">🧾</div>
+      <h3>No Expense Claims Submitted Yet</h3>
+      <p>Click "Submit Expense" above to file your first business travel reimbursement.</p>
+      <a href="{{ url_for('expense_form') }}" class="btn btn-primary" style="margin-top: 1rem;">Submit Your First Expense</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Recent Travel Requests -->
+<div class="card">
+  <div class="card-header">
+    <h3>My Travel Pre-Approval Requests</h3>
+    <a href="{{ url_for('travel_request') }}" class="btn btn-sm btn-primary">➕ New Travel Request</a>
+  </div>
+  <div class="table-responsive">
+    {% if travel_requests %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Trip ID</th>
+          <th>Purpose</th>
+          <th>Route</th>
+          <th>Dates</th>
+          <th>Mode</th>
+          <th>Est. Cost</th>
+          <th>Status</th>
+          <th>Comments</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for trip in travel_requests %}
+        <tr>
+          <td><strong>#TRIP-{{ trip.id }}</strong></td>
+          <td>{{ trip.purpose }}</td>
+          <td>{{ trip.source }} ➔ {{ trip.destination }} ({{ trip.travel_type }})</td>
+          <td>{{ trip.from_date }} to {{ trip.to_date }}</td>
+          <td>{{ trip.travel_mode }}</td>
+          <td>₹{{ "%.2f"|format(trip.estimated_cost) }}</td>
+          <td>
+            <span class="badge badge-{{ trip.status|lower|replace(' ', '-') }}">{{ trip.status }}</span>
+          </td>
+          <td>{{ trip.manager_comment or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <div class="icon">✈️</div>
+      <h3>No Travel Requests Found</h3>
+      <p>Submit a pre-approval request before planning upcoming business trips.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

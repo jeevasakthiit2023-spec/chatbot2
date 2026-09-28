@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Submit Expense Claim - Smart Expense Portal{% endblock %}
+{% block page_heading %}Submit Travel Expense Claim{% endblock %}
+
+{% block content %}
+<!-- AI Notice -->
+<div class="ai-disclaimer">
+  <span style="font-size: 1.25rem;">🤖</span>
+  <div>
+    <strong>Automated AI Auditing:</strong> Upon submission, the AI engine evaluates receipt authenticity, category limits, date matching, and statistical duplicate risks.
+    <br><small><em>AI-generated risk assessment. Final decision requires admin/finance review.</em></small>
+  </div>
+</div>
+
+<div class="card" style="max-width: 950px; margin: 0 auto;">
+  <div class="card-header">
+    <div>
+      <h2>🧾 Expense Reimbursement Submission</h2>
+      <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem;">
+        Provide valid receipts and accurate vendor data for fast approval and processing.
+      </p>
+    </div>
+    <a href="{{ url_for('employee_dashboard') }}" class="btn btn-sm btn-secondary">Dashboard</a>
+  </div>
+
+  <div class="card-body">
+    <form method="POST" action="{{ url_for('expense_form') }}" enctype="multipart/form-data">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label" for="employee_id">Employee ID</label>
+          <input type="text" id="employee_id" name="employee_id" class="form-control" value="{{ session.get('employee_id') }}" readonly style="background: #f1f5f9; font-weight: 600;">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="trip_id">Associated Travel Itinerary (Trip ID)</label>
+          <select id="trip_id" name="trip_id" class="form-control">
+            <option value="">-- Standalone / Local Expense --</option>
+            {% for trip in user_trips %}
+              <option value="{{ trip.id }}">
+                #TRIP-{{ trip.id }}: {{ trip.purpose }} ({{ trip.source }} to {{ trip.destination }}) [{{ trip.status }}]
+              </option>
+            {% endfor %}
+          </select>
+          <div class="form-helper">Link to pre-approved trip to avoid date mismatch flags.</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="expense_date">Expense Date <span class="required">*</span></label>
+          <input type="date" id="expense_date" name="expense_date" class="form-control" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="category">Expense Category <span class="required">*</span></label>
+          <select id="category" name="category" class="form-control" required>
+            <option value="Food">Food & Dining</option>
+            <option value="Taxi">Taxi & Local Transit</option>
+            <option value="Hotel">Hotel & Lodging</option>
+            <option value="Flight">Flight Airfare</option>
+            <option value="Train">Train / Railways</option>
+            <option value="Fuel">Fuel / Gas</option>
+            <option value="Other">Other Miscellaneous</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="merchant">Merchant / Vendor Name <span class="required">*</span></label>
+          <input type="text" id="merchant" name="merchant" class="form-control" placeholder="e.g. Indigo Airlines, Uber, Marriott, Starbucks" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="amount">Amount <span class="required">*</span></label>
+          <input type="number" id="amount" name="amount" class="form-control" placeholder="e.g. 1450.00" step="0.01" min="0.01" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="currency">Currency <span class="required">*</span></label>
+          <select id="currency" name="currency" class="form-control" required>
+            <option value="INR" selected>INR (₹)</option>
+            <option value="USD">USD ($)</option>
+            <option value="EUR">EUR (€)</option>
+            <option value="GBP">GBP (£)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="payment_method">Payment Method <span class="required">*</span></label>
+          <select id="payment_method" name="payment_method" class="form-control" required>
+            <option value="Corporate Card">Corporate Card</option>
+            <option value="Credit Card">Personal Credit Card</option>
+            <option value="Debit Card">Debit Card</option>
+            <option value="UPI" selected>UPI / Digital Wallet</option>
+            <option value="Cash">Cash</option>
+          </select>
+        </div>
+
+        <div class="form-group full-width">
+          <label class="form-label" for="business_purpose">Business Purpose / Client Justification <span class="required">*</span></label>
+          <input type="text" id="business_purpose" name="business_purpose" class="form-control" placeholder="e.g. Dinner with ABC Corp client stakeholders after quarterly project demo" required>
+        </div>
+
+        <div class="form-group full-width">
+          <label class="form-label" for="receipt">Receipt File (Image or PDF)</label>
+          <input type="file" id="receipt" name="receipt" class="form-control" accept=".png,.jpg,.jpeg,.pdf,.txt,.webp">
+          <div class="form-helper">Accepted formats: JPG, PNG, WEBP, PDF, TXT. Max size 10MB.</div>
+        </div>
+
+        <div class="form-group full-width">
+          <label class="form-label" for="notes">Additional Remarks / Justification Notes</label>
+          <textarea id="notes" name="notes" class="form-control" rows="2" placeholder="Include any itemization details, emergency circumstances, or project codes."></textarea>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+        <button type="submit" class="btn btn-primary" style="padding: 0.85rem 2.5rem; font-size: 1rem;">
+          🤖 Submit & Run AI Fraud Audit
+        </button>
+        <a href="{{ url_for('employee_dashboard') }}" class="btn btn-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

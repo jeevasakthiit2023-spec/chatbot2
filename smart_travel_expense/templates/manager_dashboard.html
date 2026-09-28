@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+
+{% block title %}Manager Dashboard - Smart Expense Portal{% endblock %}
+{% block page_heading %}Manager Approval Portal{% endblock %}
+
+{% block content %}
+<!-- AI Notice -->
+<div class="ai-disclaimer">
+  <span style="font-size: 1.25rem;">🤖</span>
+  <div>
+    <strong>AI Risk Triage Active:</strong> Claims are scored by anomaly detection and policy checks. <em>AI-generated risk assessment. Final decision requires admin/finance review.</em>
+  </div>
+</div>
+
+<!-- Manager Stats KPI Cards -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div>
+      <div class="stat-label">Pending Expenses</div>
+      <div class="stat-value" style="color: var(--status-pending);">{{ stats.pending_expenses }}</div>
+      <small style="color: var(--text-muted);">Require approval</small>
+    </div>
+    <div class="stat-icon yellow">⏳</div>
+  </div>
+
+  <div class="stat-card">
+    <div>
+      <div class="stat-label">Pending Travel Plans</div>
+      <div class="stat-value" style="color: var(--accent);">{{ stats.pending_travel }}</div>
+      <small style="color: var(--text-muted);">Itinerary requests</small>
+    </div>
+    <div class="stat-icon blue">✈️</div>
+  </div>
+
+  <div class="stat-card">
+    <div>
+      <div class="stat-label">High Risk Claims</div>
+      <div class="stat-value" style="color: {% if stats.high_risk_expenses > 0 %}#dc2626{% else %}#16a34a{% endif %};">
+        {{ stats.high_risk_expenses }}
+      </div>
+      <small style="color: var(--text-muted);">AI flagged > 60%</small>
+    </div>
+    <div class="stat-icon red">🚨</div>
+  </div>
+
+  <div class="stat-card">
+    <div>
+      <div class="stat-label">Total Expenses Reviewed</div>
+      <div class="stat-value">{{ stats.total_expenses }}</div>
+      <small style="color: var(--text-muted);">All team submissions</small>
+    </div>
+    <div class="stat-icon purple">🧾</div>
+  </div>
+
+  <div class="stat-card">
+    <div>
+      <div class="stat-label">Total Travel Plans</div>
+      <div class="stat-value">{{ stats.total_travel }}</div>
+      <small style="color: var(--text-muted);">Corporate trips</small>
+    </div>
+    <div class="stat-icon green">🌍</div>
+  </div>
+</div>
+
+<!-- Section 1: High Risk Expenses Flagged by AI -->
+{% if high_risk_claims %}
+<div class="card" id="high-risk" style="border-left: 4px solid var(--risk-high);">
+  <div class="card-header" style="background: #fff5f5;">
+    <div>
+      <h3 style="color: #991b1b;">🚨 Critical AI Fraud Alerts (High Risk Claims)</h3>
+      <p style="color: #b91c1c; font-size: 0.85rem;">Claims flagged with severe policy violations, duplicate signatures, or anomalous amounts.</p>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Exp ID</th>
+          <th>Employee</th>
+          <th>Category</th>
+          <th>Merchant</th>
+          <th>Amount</th>
+          <th>AI Risk</th>
+          <th>Top Reason</th>
+          <th>Receipt</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for exp in high_risk_claims %}
+        <tr style="background: #fffafa;">
+          <td><strong>#EXP-{{ exp.id }}</strong></td>
+          <td>{{ exp.employee_name }} ({{ exp.employee_id }})</td>
+          <td><span class="badge" style="background: #e2e8f0;">{{ exp.category }}</span></td>
+          <td>{{ exp.merchant }}</td>
+          <td><strong>₹{{ "%.2f"|format(exp.amount) }}</strong></td>
+          <td>
+            <span class="badge badge-risk-high">{{ exp.risk_score }}% HIGH</span>
+          </td>
+          <td style="max-width: 250px; font-size: 0.85rem; color: #991b1b;">
+            {{ exp.top_reason }}
+          </td>
+          <td>
+            {% if exp.receipt_filename %}
+              <a href="{{ url_for('uploaded_file', filename=exp.receipt_filename) }}" target="_blank" class="btn btn-sm btn-secondary">📎 View</a>
+            {% else %}
+              <span style="color: #dc2626; font-size: 0.8rem;">Missing</span>
+            {% endif %}
+          </td>
+          <td>
+            <div style="display: flex; gap: 0.35rem;">
+              <a href="{{ url_for('expense_details', expense_id=exp.id) }}" class="btn btn-sm btn-secondary">Audit</a>
+              <form method="POST" action="{{ url_for('manager_action', expense_id=exp.id) }}" style="display: inline;">
+                <input type="hidden" name="action" value="Reject">
+                <button type="submit" class="btn btn-sm btn-danger">Reject</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- Section 2: Expense Claims For Review -->
+<div class="card" id="expense-claims">
+  <div class="card-header">
+    <div>
+      <h3>🧾 Team Expense Claims</h3>
+      <p style="color: var(--text-muted); font-size: 0.85rem;">Review, verify receipts, check AI risk scores, and authorize claims.</p>
+    </div>
+  </div>
+  <div class="table-responsive">
+    {% if all_expenses %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Exp ID</th>
+          <th>Employee</th>
+          <th>Category</th>
+          <th>Merchant</th>
+          <th>Amount</th>
+          <th>Date</th>
+          <th>AI Risk</th>
+          <th>Risk Level</th>
+          <th>Receipt</th>
+          <th>Status</th>
+          <th>Manager Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for exp in all_expenses %}
+        <tr>
+          <td><strong>#EXP-{{ exp.id }}</strong></td>
+          <td>{{ exp.employee_name }}<br><small style="color: var(--text-muted);">{{ exp.employee_id }}</small></td>
+          <td><span class="badge" style="background: #f1f5f9;">{{ exp.category }}</span></td>
+          <td>{{ exp.merchant }}</td>
+          <td><strong>₹{{ "%.2f"|format(exp.amount) }}</strong></td>
+          <td>{{ exp.expense_date }}</td>
+          <td>
+            <div class="risk-meter-wrapper">
+              <span style="font-weight: 700; width: 35px;">{{ exp.risk_score }}%</span>
+              <div class="risk-progress-bar" style="width: 45px;">
+                <div class="risk-fill {% if exp.risk_score <= 30 %}low{% elif exp.risk_score <= 60 %}medium{% else %}high{% endif %}" style="width: {{ exp.risk_score }}%;"></div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <span class="badge badge-risk-{{ exp.risk_level|lower|replace(' risk', '') }}">{{ exp.risk_level }}</span>
+          </td>
+          <td>
+            {% if exp.receipt_filename %}
+              <a href="{{ url_for('uploaded_file', filename=exp.receipt_filename) }}" target="_blank" class="btn btn-sm btn-secondary">📎 Receipt</a>
+            {% else %}
+              <span style="color: #94a3b8; font-size: 0.8rem;">None</span>
+            {% endif %}
+          </td>
+          <td>
+            <span class="badge badge-{{ exp.status|lower|replace(' ', '-') }}">{{ exp.status }}</span>
+          </td>
+          <td>
+            <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+              <a href="{{ url_for('expense_details', expense_id=exp.id) }}" class="btn btn-sm btn-secondary">🔍 View</a>
+              {% if exp.status == 'Pending' %}
+                <form method="POST" action="{{ url_for('manager_action', expense_id=exp.id) }}" style="display: inline;">
+                  <input type="hidden" name="action" value="Approve">
+                  <button type="submit" class="btn btn-sm btn-success" title="Approve">✓</button>
+                </form>
+                <form method="POST" action="{{ url_for('manager_action', expense_id=exp.id) }}" style="display: inline;">
+                  <input type="hidden" name="action" value="Reject">
+                  <button type="submit" class="btn btn-sm btn-danger" title="Reject">✕</button>
+                </form>
+                <form method="POST" action="{{ url_for('manager_action', expense_id=exp.id) }}" style="display: inline;">
+                  <input type="hidden" name="action" value="Request Clarification">
+                  <button type="submit" class="btn btn-sm btn-warning" title="Request Clarification">💬</button>
+                </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <div class="icon">🧾</div>
+      <h3>No Expense Claims Found</h3>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Section 3: Travel Pre-Approval Requests -->
+<div class="card" id="travel-requests">
+  <div class="card-header">
+    <div>
+      <h3>✈️ Team Travel Pre-Approval Requests</h3>
+      <p style="color: var(--text-muted); font-size: 0.85rem;">Approve or reject employee travel itineraries and budget allocations.</p>
+    </div>
+  </div>
+  <div class="table-responsive">
+    {% if travel_requests %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Trip ID</th>
+          <th>Employee</th>
+          <th>Purpose</th>
+          <th>Route & Type</th>
+          <th>Travel Dates</th>
+          <th>Mode</th>
+          <th>Est. Budget</th>
+          <th>Advance</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for trip in travel_requests %}
+        <tr>
+          <td><strong>#TRIP-{{ trip.id }}</strong></td>
+          <td>{{ trip.employee_name }}<br><small style="color: var(--text-muted);">{{ trip.employee_id }}</small></td>
+          <td>{{ trip.purpose }}</td>
+          <td>{{ trip.source }} ➔ {{ trip.destination }}<br><small style="color: var(--text-muted);">({{ trip.travel_type }})</small></td>
+          <td>{{ trip.from_date }} to {{ trip.to_date }}</td>
+          <td>{{ trip.travel_mode }}</td>
+          <td><strong>₹{{ "%.2f"|format(trip.estimated_cost) }}</strong></td>
+          <td>₹{{ "%.2f"|format(trip.advance_required) }}</td>
+          <td>
+            <span class="badge badge-{{ trip.status|lower|replace(' ', '-') }}">{{ trip.status }}</span>
+          </td>
+          <td>
+            {% if trip.status == 'Pending' %}
+              <div style="display: flex; gap: 0.35rem;">
+                <form method="POST" action="{{ url_for('manager_trip_action', trip_id=trip.id) }}" style="display: inline;">
+                  <input type="hidden" name="action" value="Approve">
+                  <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                </form>
+                <form method="POST" action="{{ url_for('manager_trip_action', trip_id=trip.id) }}" style="display: inline;">
+                  <input type="hidden" name="action" value="Reject">
+                  <button type="submit" class="btn btn-sm btn-danger">Reject</button>
+                </form>
+              </div>
+            {% else %}
+              <span style="font-size: 0.85rem; color: var(--text-muted);">{{ trip.manager_comment or 'Completed' }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <div class="icon">✈️</div>
+      <h3>No Travel Pre-Approval Requests</h3>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

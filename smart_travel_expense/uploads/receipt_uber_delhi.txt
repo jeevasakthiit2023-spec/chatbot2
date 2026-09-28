@@ -1,0 +1,6 @@
+UBER RIDES INDIA PVT LTD
+Date: 2026-09-20
+Trip: Airport to Connaught Place
+Total: INR 850.00
+Payment: UPI
+Tax Invoice #UB-982145
